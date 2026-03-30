@@ -7,6 +7,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const QRCode = require("qrcode");
+const { Resend } = require("resend");
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
 app.use(cors());
@@ -204,6 +207,74 @@ app.post("/api/user/change-password", authRequired, async (req, res) => {
     );
 
     return res.json({ success: true, message: "Password changed" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "server error" });
+  }
+});
+
+// ==================== USER VEHICLES ====================
+
+// GET /api/user/vehicles - Get logged-in user's saved vehicles
+app.get("/api/user/vehicles", authRequired, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const [rows] = await pool.execute(
+      "SELECT Registracija, Marka_vozila, Tip_vozila FROM Vozilo WHERE ID_korisnika = ? ORDER BY Registracija",
+      [userId]
+    );
+    return res.json(rows.map(r => ({
+      registracija: r.Registracija,
+      marka: r.Marka_vozila,
+      tip: r.Tip_vozila,
+    })));
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "server error" });
+  }
+});
+
+// POST /api/user/vehicles - Add a new vehicle
+app.post("/api/user/vehicles", authRequired, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const { registracija, marka, tip } = req.body || {};
+    if (!registracija || !marka) {
+      return res.status(400).json({ error: "Registracija i marka su obavezni" });
+    }
+    const reg = String(registracija).trim().toUpperCase();
+    const brand = String(marka).trim();
+    try {
+      await pool.execute(
+        "INSERT INTO Vozilo (Registracija, ID_korisnika, Marka_vozila, Tip_vozila) VALUES (?, ?, ?, ?)",
+        [reg, userId, brand, tip || null]
+      );
+    } catch (dbErr) {
+      if (dbErr.code === "ER_DUP_ENTRY") {
+        return res.status(409).json({ error: "Vozilo s tom registracijom već postoji" });
+      }
+      throw dbErr;
+    }
+    return res.status(201).json({ success: true, registracija: reg });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "server error" });
+  }
+});
+
+// DELETE /api/user/vehicles/:registration - Delete a vehicle (only owner)
+app.delete("/api/user/vehicles/:registration", authRequired, async (req, res) => {
+  try {
+    const userId = req.user.sub;
+    const reg = String(req.params.registration).trim().toUpperCase();
+    const [result] = await pool.execute(
+      "DELETE FROM Vozilo WHERE Registracija = ? AND ID_korisnika = ?",
+      [reg, userId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Vozilo nije pronađeno" });
+    }
+    return res.json({ success: true });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "server error" });
@@ -850,6 +921,74 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
     );
     const spaceType = spaceRows[0]?.Vrsta_parkirnog_mjesta || "standardno";
 
+    // Send e-karta to user's email
+    const userEmail = user.Email_adresa_korisnika;
+    const userName = `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
+    const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
+    const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
+
+    if (userEmail && process.env.RESEND_API_KEY && !process.env.RESEND_API_KEY.includes("your_api_key")) {
+      try {
+        await resend.emails.send({
+          from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
+          to: userEmail,
+          subject: `E-karta ${bookingCode} – ParkInIT`,
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
+              <div style="background:#1a237e;color:white;padding:20px 24px;">
+                <h1 style="margin:0;font-size:22px;">ParkInIT – E-karta</h1>
+              </div>
+              <div style="padding:24px;">
+                <p style="margin-top:0;">Pozdrav, <strong>${userName}</strong>!</p>
+                <p>Vaša rezervacija je potvrđena. U nastavku su detalji vaše e-karte.</p>
+                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px 0;color:#666;width:45%;">Kod rezervacije</td>
+                    <td style="padding:8px 0;font-weight:bold;">${bookingCode}</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px 0;color:#666;">Lokacija</td>
+                    <td style="padding:8px 0;">${parkingAddress}</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px 0;color:#666;">Parkirno mjesto</td>
+                    <td style="padding:8px 0;">#${spaceNumber}</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px 0;color:#666;">Registracija</td>
+                    <td style="padding:8px 0;color:#c0392b;font-weight:bold;">${vehicle}</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:8px 0;color:#666;">Početak</td>
+                    <td style="padding:8px 0;">${formattedStart}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 0;color:#666;">Završetak</td>
+                    <td style="padding:8px 0;">${formattedEnd}</td>
+                  </tr>
+                </table>
+                <div style="text-align:center;margin:24px 0;">
+                  <img src="${qrCodeDataUrl}" alt="QR kod" width="180" style="display:block;margin:0 auto;" />
+                  <p style="font-size:12px;color:#999;margin-top:8px;">Pokažite QR kod na ulazu parkinga</p>
+                </div>
+              </div>
+              <div style="background:#f5f5f5;padding:12px 24px;font-size:12px;color:#999;text-align:center;">
+                ParkInIT &copy; ${new Date().getFullYear()}
+              </div>
+            </div>
+          `,
+        });
+        await pool.execute(
+          "UPDATE Ekarta SET Poslana_na_mail = 1 WHERE Br_rezervacije = ?",
+          [brRezervacije],
+        );
+        console.log(`[EMAIL] E-karta ${bookingCode} sent to ${userEmail}`);
+      } catch (emailErr) {
+        // Email failure should not block the payment success response
+        console.error("[EMAIL] Failed to send e-karta email:", emailErr.message);
+      }
+    }
+
     return res.json({
       success: true,
       orderId,
@@ -863,8 +1002,7 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
         startDateTime,
         endDateTime,
         vehicle,
-        userName:
-          `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim(),
+        userName,
         userId,
         statusRezervacije: "placena",
       },
