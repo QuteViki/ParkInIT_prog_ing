@@ -1,0 +1,14 @@
+{
+  "name": "parkinit",
+  "version": "0.0.1",
+  "description": "ParkInIT mobile app",
+  "author": "Eda Calderini Zivanovic",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^7.4.5",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/camera": "^7.0.3",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

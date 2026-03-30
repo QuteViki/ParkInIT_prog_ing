@@ -1,0 +1,109 @@
+<template>
+  <q-page padding>
+    <div class="text-h5 q-mb-md">{{ $t('settings.title') }}</div>
+
+    <!-- Language Settings -->
+    <q-card flat bordered class="q-pa-md q-mb-md">
+      <q-card-section>
+        <div class="text-h6 q-mb-md">{{ $t('settings.language') }}</div>
+        
+        <q-select
+          v-model="selectedLanguage"
+          :options="languageOptions"
+          :label="$t('settings.selectLanguage')"
+          outlined
+          emit-value
+          map-options
+          @update:model-value="changeLanguage"
+        >
+          <template v-slot:prepend>
+            <q-icon name="language" />
+          </template>
+        </q-select>
+      </q-card-section>
+    </q-card>
+
+    <!-- Theme Settings -->
+    <q-card flat bordered class="q-pa-md">
+      <q-card-section>
+        <div class="text-h6 q-mb-md">{{ $t('settings.theme') }}</div>
+        
+        <q-select
+          v-model="selectedTheme"
+          :options="themeOptions"
+          :label="$t('settings.selectTheme')"
+          outlined
+          emit-value
+          map-options
+          @update:model-value="changeTheme"
+        >
+          <template v-slot:prepend>
+            <q-icon :name="selectedTheme === 'dark' ? 'dark_mode' : 'light_mode'" />
+          </template>
+        </q-select>
+      </q-card-section>
+    </q-card>
+  </q-page>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useQuasar } from 'quasar'
+
+const { locale } = useI18n()
+const $q = useQuasar()
+
+const selectedLanguage = ref('hr-HR')
+const selectedTheme = ref('light')
+
+const languageOptions = [
+  { label: 'Hrvatski', value: 'hr-HR' },
+  { label: 'English', value: 'en-US' }
+]
+
+const themeOptions = [
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' }
+]
+
+onMounted(() => {
+  // Load saved language preference, default to English
+  const savedLang = localStorage.getItem('user_language') || 'en-US'
+  selectedLanguage.value = savedLang
+  locale.value = savedLang
+
+  // Load saved theme preference
+  const savedTheme = localStorage.getItem('user_theme') || 'light'
+  selectedTheme.value = savedTheme
+  applyTheme(savedTheme)
+})
+
+function changeLanguage(newLang) {
+  locale.value = newLang
+  localStorage.setItem('user_language', newLang)
+  
+  $q.notify({
+    type: 'positive',
+    message: newLang === 'hr-HR' ? 'Jezik promijenjen' : 'Language changed',
+    position: 'top'
+  })
+}
+
+function changeTheme(newTheme) {
+  localStorage.setItem('user_theme', newTheme)
+  applyTheme(newTheme)
+  
+  $q.notify({
+    type: 'positive',
+    message: locale.value === 'hr-HR' 
+      ? `Tema promijenjena: ${newTheme === 'dark' ? 'Tamna' : 'Svijetla'}`
+      : `Theme changed: ${newTheme === 'dark' ? 'Dark' : 'Light'}`,
+    position: 'top'
+  })
+}
+
+function applyTheme(theme) {
+  $q.dark.set(theme === 'dark')
+}
+</script>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ParkInIT_mobile</string>
+    <string name="title_activity_main">ParkInIT_mobile</string>
+    <string name="package_name">com.parkinit.app</string>
+    <string name="custom_url_scheme">com.parkinit.app</string>
+</resources>
