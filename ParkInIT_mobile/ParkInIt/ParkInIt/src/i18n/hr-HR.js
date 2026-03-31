@@ -34,6 +34,8 @@ export default {
     selectLanguage: 'Odaberi jezik',
     theme: 'Tema',
     selectTheme: 'Odaberi temu',
+    fontSize: 'Veličina fonta',
+    largerFont: 'Koristi veći font',
   },
 
   // Reservations

@@ -34,6 +34,8 @@ export default {
     selectLanguage: 'Select language',
     theme: 'Theme',
     selectTheme: 'Select theme',
+    fontSize: 'Font Size',
+    largerFont: 'Use larger font',
   },
 
   // Reservations

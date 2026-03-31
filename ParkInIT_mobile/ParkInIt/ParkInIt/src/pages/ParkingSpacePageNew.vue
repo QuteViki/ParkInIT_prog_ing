@@ -79,7 +79,7 @@
     <div v-else-if="currentStep === 'select-space'" class="select-space-view">
       <div class="header-section">
         <q-btn flat round icon="arrow_back" @click="currentStep = 'time-select'" size="sm" />
-        <div class="price-info">{{ selectedParking.Cijena_parkinga }}€/h</div>
+        <div class="price-info">{{ currentHourlyPrice.toFixed(2) }}€/h</div>
       </div>
 
       <div class="location-section">
@@ -173,6 +173,7 @@ const router = useRouter()
 const $q = useQuasar()
 
 const API_URL = 'http://localhost:3000'
+const DISABLED_SPACE_HOURLY_PRICE = 0.5
 
 // State
 const currentStep = ref('select-parking')
@@ -195,6 +196,13 @@ const selectedStartTime = computed(() => {
 
 const selectedEndTime = computed(() => {
   return reservationData.value.endTime || '--:--'
+})
+
+const currentHourlyPrice = computed(() => {
+  if (selectedSpace.value?.Vrsta_parkirnog_mjesta === 'invalidsko') {
+    return DISABLED_SPACE_HOURLY_PRICE
+  }
+  return Number(selectedParking.value?.Cijena_parkinga) || 1.5
 })
 
 const isTimeValid = computed(() => {
@@ -321,7 +329,7 @@ const proceedToReservation = () => {
       endDateTime: fullEndDateTime,
       parkingId: selectedParking.value.Sifra_parkinga,
       parkingAddress: selectedParking.value.Adresa_parkinga,
-      parkingPrice: selectedParking.value.Cijena_parkinga,
+      parkingPrice: currentHourlyPrice.value,
       spaceNumber: selectedSpace.value.Broj_parkirnog_mjesta,
       spaceType: selectedSpace.value.Vrsta_parkirnog_mjesta,
     }),

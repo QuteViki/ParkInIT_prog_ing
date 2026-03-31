@@ -5,7 +5,6 @@ const multer = require("multer");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const axios = require("axios");
 const QRCode = require("qrcode");
 const { Resend } = require("resend");
 
@@ -98,6 +97,56 @@ app.post("/api/auth/login", async (req, res) => {
         prezime: user.Prezime_korisnika,
       },
     });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "server error" });
+  }
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { firstName, lastName, personalId, phone, email, password } =
+      req.body || {};
+
+    if (!firstName || !lastName || !personalId || !phone || !email || !password) {
+      return res.status(400).json({ error: "Sva polja su obavezna" });
+    }
+
+    if (String(password).length < 8) {
+      return res
+        .status(400)
+        .json({ error: "Lozinka mora imati najmanje 8 znakova" });
+    }
+
+    const normEmail = String(email).trim().toLowerCase();
+    const normOib = String(personalId).trim();
+
+    const [existing] = await pool.execute(
+      "SELECT ID_korisnika FROM Korisnik WHERE Email_adresa_korisnika = ? OR OIB_korisnika = ? LIMIT 1",
+      [normEmail, normOib],
+    );
+
+    if (existing.length) {
+      return res
+        .status(409)
+        .json({ error: "Korisnik s tim emailom ili OIB-om već postoji" });
+    }
+
+    const hash = await bcrypt.hash(String(password), 10);
+
+    await pool.execute(
+      "INSERT INTO Korisnik (Ime_korisnika, Prezime_korisnika, OIB_korisnika, Telefonski_broj_korisnika, Email_adresa_korisnika, Password_hash, Role) VALUES (?, ?, ?, ?, ?, ?, 'user')",
+      [
+        String(firstName).trim(),
+        String(lastName).trim(),
+        normOib,
+        String(phone).trim(),
+        normEmail,
+        hash,
+      ],
+    );
+
+    return res.status(201).json({ success: true, message: "Account created" });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "server error" });
@@ -278,34 +327,6 @@ app.delete("/api/user/vehicles/:registration", authRequired, async (req, res) =>
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "server error" });
-  }
-});
-
-// ==================== PARKING AVAILABILITY PROXY ====================
-// Proxy endpoint to avoid CORS issues with Rijeka Plus API
-app.get("/api/parking/availability", async (req, res) => {
-  try {
-    console.log("Fetching parking data from Rijeka Plus API...");
-
-    const response = await axios.get(
-      "https://www.rijeka-plus.hr/wp-json/restAPI/v1/parkingAPI",
-      {
-        timeout: 15000,
-        headers: {
-          "User-Agent": "ParkInIT/1.0",
-        },
-      },
-    );
-
-    console.log("Parking data received successfully");
-    console.log("Number of parking lots:", response.data.length);
-    res.json(response.data);
-  } catch (error) {
-    console.error("Parking API error:", error.message);
-    res.status(500).json({
-      error: "Failed to fetch parking data",
-      message: error.message,
-    });
   }
 });
 
@@ -612,6 +633,32 @@ app.post("/api/reservations", authRequired, async (req, res) => {
         .json({ error: "Parkirno mjesto je zauzeto ili rezervirano" });
     }
 
+    // Ensure the vehicle (Registracija) exists in Vozilo before inserting Rezervacija (FK constraint)
+    const regPlate = Registracija || "";
+
+    // Check if user already has a reservation for this plate at the same time (any location)
+    if (regPlate) {
+      const [plateConflicts] = await pool.execute(
+        `SELECT r.Br_rezervacije, p.Adresa_parkinga
+         FROM Rezervacija r
+         LEFT JOIN Parkirno_mjesto pm ON pm.Broj_parkirnog_mjesta = r.Broj_parkirnog_mjesta
+         LEFT JOIN Parking p ON p.Sifra_parkinga = pm.Sifra_parkinga
+         WHERE r.ID_korisnika = ?
+           AND r.Registracija = ?
+           AND r.Status_rezervacije IN ('aktivna', 'placena')
+           AND r.Vrijeme_pocetka < ? AND r.Vrijeme_isteka > ?
+         LIMIT 1`,
+        [userId, regPlate, endTime, startTime],
+      );
+      if (plateConflicts.length > 0) {
+        const loc = plateConflicts[0].Adresa_parkinga || 'drugoj lokaciji';
+        return res.status(409).json({
+          error: `Vozilo ${regPlate} već ima rezervaciju za taj period (${loc}).`,
+          existingLocation: loc,
+        });
+      }
+    }
+
     // Check for overlapping reservations (CRITICAL: Prevent double-booking)
     const [conflicts] = await pool.execute(
       `SELECT COUNT(*) as count FROM Rezervacija 
@@ -629,9 +676,6 @@ app.post("/api/reservations", authRequired, async (req, res) => {
           "Parkirno mjesto je već rezervirano za odabrani vremenski period",
       });
     }
-
-    // Ensure the vehicle (Registracija) exists in Vozilo before inserting Rezervacija (FK constraint)
-    const regPlate = Registracija || "";
     if (regPlate) {
       await pool.execute(
         `INSERT IGNORE INTO Vozilo (Registracija, ID_korisnika, Marka_vozila) VALUES (?, ?, 'Nepoznato')`,
@@ -699,6 +743,54 @@ app.put("/api/reservations/:id", authRequired, async (req, res) => {
        SET Vrijeme_pocetka = ?, Vrijeme_isteka = ?, Broj_parkirnog_mjesta = ?
        WHERE Br_rezervacije = ?`,
       [Vrijeme_pocetka, Vrijeme_isteka, slot, id],
+    );
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "server error" });
+  }
+});
+
+// PATCH /api/reservations/:id/cancel - Cancel reservation (keeps in DB)
+app.patch("/api/reservations/:id/cancel", authRequired, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const userId = Number(req.user.sub);
+
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Neispravan ID rezervacije" });
+    }
+
+    const [existing] = await pool.execute(
+      "SELECT ID_korisnika, Status_rezervacije, Vrijeme_isteka FROM Rezervacija WHERE Br_rezervacije = ?",
+      [id],
+    );
+
+    if (!existing.length) {
+      return res.status(404).json({ error: "Rezervacija nije pronađena" });
+    }
+
+    if (Number(existing[0].ID_korisnika) !== userId) {
+      return res.status(403).json({ error: "Nemate dozvolu za ovu akciju" });
+    }
+
+    if (!["aktivna", "placena"].includes(existing[0].Status_rezervacije)) {
+      return res.status(400).json({
+        error: "Samo aktivne i plaćene rezervacije se mogu otkazati",
+      });
+    }
+
+    const endTime = new Date(existing[0].Vrijeme_isteka);
+    if (!Number.isNaN(endTime.getTime()) && endTime <= new Date()) {
+      return res
+        .status(400)
+        .json({ error: "Istekle rezervacije nije moguće otkazati" });
+    }
+
+    await pool.execute(
+      "UPDATE Rezervacija SET Status_rezervacije = 'otkazana' WHERE Br_rezervacije = ?",
+      [id],
     );
 
     return res.json({ success: true });
@@ -834,6 +926,7 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
   try {
     const { bookingCode, amount, reservation } = req.body || {};
     const userId = Number(req.user.sub);
+    const DISABLED_SPACE_HOURLY_PRICE = 0.5;
 
     if (!bookingCode || !amount || !reservation) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -844,11 +937,66 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
       return res.status(400).json({ error: "Missing reservation details" });
     }
 
+    const start = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      return res.status(400).json({ error: "Invalid reservation time range" });
+    }
+
+    const durationMs = end - start;
+    const billableHours = Math.ceil(durationMs / (1000 * 60 * 60));
+
+    const [spacePricingRows] = await pool.execute(
+      `SELECT pm.Vrsta_parkirnog_mjesta, p.Cijena_parkinga
+       FROM Parkirno_mjesto pm
+       LEFT JOIN Parking p ON p.Sifra_parkinga = pm.Sifra_parkinga
+       WHERE pm.Broj_parkirnog_mjesta = ?
+       LIMIT 1`,
+      [spaceNumber],
+    );
+
+    if (!spacePricingRows.length) {
+      return res.status(404).json({ error: "Parkirno mjesto nije pronađeno" });
+    }
+
+    const spaceTypeRaw = spacePricingRows[0].Vrsta_parkirnog_mjesta || "standardno";
+    const baseRate = Number(spacePricingRows[0].Cijena_parkinga) || 1.5;
+    const hourlyRate =
+      spaceTypeRaw === "invalidsko" ? DISABLED_SPACE_HOURLY_PRICE : baseRate;
+    const expectedAmountCents = Math.round(hourlyRate * billableHours * 100);
+
+    if (Number(amount) !== expectedAmountCents) {
+      return res.status(400).json({
+        error: `Neispravan iznos za odabrano mjesto. Očekivano: ${(expectedAmountCents / 100).toFixed(2)} EUR`,
+      });
+    }
+
     // Ensure the vehicle exists in Vozilo (FK constraint)
     await pool.execute(
       `INSERT IGNORE INTO Vozilo (Registracija, ID_korisnika, Marka_vozila) VALUES (?, ?, 'Nepoznato')`,
       [vehicle, userId],
     );
+
+    // Check if user already has a reservation for this plate at the same time (any location)
+    const [plateConflicts] = await pool.execute(
+      `SELECT r.Br_rezervacije, p.Adresa_parkinga
+       FROM Rezervacija r
+       LEFT JOIN Parkirno_mjesto pm ON pm.Broj_parkirnog_mjesta = r.Broj_parkirnog_mjesta
+       LEFT JOIN Parking p ON p.Sifra_parkinga = pm.Sifra_parkinga
+       WHERE r.ID_korisnika = ?
+         AND r.Registracija = ?
+         AND r.Status_rezervacije IN ('aktivna', 'placena')
+         AND r.Vrijeme_pocetka < ? AND r.Vrijeme_isteka > ?
+       LIMIT 1`,
+      [userId, vehicle, endDateTime, startDateTime],
+    );
+    if (plateConflicts.length > 0) {
+      const loc = plateConflicts[0].Adresa_parkinga || 'drugoj lokaciji';
+      return res.status(409).json({
+        error: `Vozilo ${vehicle} već ima rezervaciju za taj period (${loc}).`,
+        existingLocation: loc,
+      });
+    }
 
     // Check for overlapping reservations to prevent double-booking
     const [conflicts] = await pool.execute(
@@ -885,10 +1033,8 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
       do: endDateTime,
       registracija: vehicle,
     });
-    const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
-      width: 200,
-      margin: 1,
-    });
+    const qrBuffer = await QRCode.toBuffer(qrData, { width: 200, margin: 1 });
+    const qrCodeDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
 
     // Insert Ekarta record
     await pool.execute(
@@ -915,11 +1061,7 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
       parkingRows[0]?.Adresa_parkinga || reservation.address || "";
 
     // Get space type
-    const [spaceRows] = await pool.execute(
-      "SELECT Vrsta_parkirnog_mjesta FROM Parkirno_mjesto WHERE Broj_parkirnog_mjesta = ?",
-      [spaceNumber],
-    );
-    const spaceType = spaceRows[0]?.Vrsta_parkirnog_mjesta || "standardno";
+    const spaceType = spaceTypeRaw;
 
     // Send e-karta to user's email
     const userEmail = user.Email_adresa_korisnika;
@@ -933,6 +1075,12 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
           from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
           to: userEmail,
           subject: `E-karta ${bookingCode} – ParkInIT`,
+          attachments: [{
+            filename: "qrcode.png",
+            content: qrBuffer.toString("base64"),
+            content_type: "image/png",
+            content_id: "qrcode",
+          }],
           html: `
             <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
               <div style="background:#1a237e;color:white;padding:20px 24px;">
@@ -968,7 +1116,7 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
                   </tr>
                 </table>
                 <div style="text-align:center;margin:24px 0;">
-                  <img src="${qrCodeDataUrl}" alt="QR kod" width="180" style="display:block;margin:0 auto;" />
+                  <img src="cid:qrcode" alt="QR kod" width="180" style="display:block;margin:0 auto;" />
                   <p style="font-size:12px;color:#999;margin-top:8px;">Pokažite QR kod na ulazu parkinga</p>
                 </div>
               </div>

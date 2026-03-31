@@ -116,17 +116,6 @@
           </div>
         </div>
 
-        <!-- Disabled Spaces Toggle -->
-        <div class="toggle-section">
-          <span class="toggle-label">{{ t('reservation.invalidSpace') }}</span>
-          <q-toggle
-            v-model="formData.invalidSpaceToggle"
-            color="primary"
-            size="md"
-            class="toggle-switch"
-          />
-        </div>
-
         <!-- Duration and Price Section -->
         <div class="calculation-section">
           <div class="calc-row">
@@ -172,6 +161,7 @@ const { t } = useI18n()
 
 // API Configuration
 const API_URL = 'http://localhost:3000'
+const DISABLED_SPACE_HOURLY_PRICE = 0.5
 
 // Get parking data from localStorage (set by new ParkingSpacePageNew)
 const reservationDataStr = localStorage.getItem('reservationData')
@@ -182,10 +172,14 @@ const parkingData = ref({
   spaceNumber: parsedReservationData?.spaceNumber || '1',
   isDisabled: parsedReservationData?.spaceType === 'invalidsko',
   parkingId: parsedReservationData?.parkingId,
-  parkingPrice: parsedReservationData?.parkingPrice || 1.5,
+  parkingPrice: Number(parsedReservationData?.parkingPrice) || 1.5,
 })
 
-const pricePerHour = ref(parsedReservationData?.parkingPrice || 1.5)
+const pricePerHour = ref(
+  parkingData.value.isDisabled
+    ? DISABLED_SPACE_HOURLY_PRICE
+    : Number(parsedReservationData?.parkingPrice) || 1.5,
+)
 
 // Pre-fill form with data from parking page
 const formData = ref({
@@ -195,7 +189,6 @@ const formData = ref({
   startMinutes: parseInt(parsedReservationData?.startTime?.split(':')[1] || '0'),
   endHours: parseInt(parsedReservationData?.endTime?.split(':')[0] || '15'),
   endMinutes: parseInt(parsedReservationData?.endTime?.split(':')[1] || '0'),
-  invalidSpaceToggle: false,
 })
 
 const loading = ref(false)
@@ -354,6 +347,7 @@ async function handlePayment() {
       isDisabledSpace: parkingData.value.isDisabled,
       address: parkingData.value.address,
       parkingId: parkingData.value.parkingId,
+      parkingPrice: pricePerHour.value,
       spaceType: parkingData.value.isDisabled ? 'invalidsko' : 'standardno',
     }
 
@@ -376,7 +370,7 @@ async function handlePayment() {
       let errorMessage = 'Greška pri iniciiranju plaćanja'
       try {
         const error = await response.json()
-        errorMessage = error.message || errorMessage
+        errorMessage = error.error || error.message || errorMessage
       } catch {
         errorMessage = `Server error: ${response.status} ${response.statusText}`
       }
@@ -526,27 +520,6 @@ async function handlePayment() {
   font-weight: 600;
   color: #333;
   padding: 0 2px;
-}
-
-/* Toggle Section */
-.toggle-section {
-  padding: 8px clamp(10px, 2.5vw, 14px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #eee;
-  flex-shrink: 0;
-}
-
-.toggle-label {
-  font-size: clamp(10px, 2.5vw, 11px);
-  color: #333;
-  margin: 0;
-  font-weight: 500;
-}
-
-.toggle-switch {
-  margin: 0;
 }
 
 /* Calculation Section */

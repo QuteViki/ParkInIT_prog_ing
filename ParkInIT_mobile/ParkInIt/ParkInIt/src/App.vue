@@ -13,6 +13,9 @@ import { ref, onMounted } from 'vue'
 const showSplash = ref(true)
 
 onMounted(() => {
+  const savedFontSize = localStorage.getItem('user_font_size') || 'normal'
+  document.documentElement.style.fontSize = savedFontSize === 'large' ? '18px' : '16px'
+
   setTimeout(() => {
     showSplash.value = false
   }, 800)

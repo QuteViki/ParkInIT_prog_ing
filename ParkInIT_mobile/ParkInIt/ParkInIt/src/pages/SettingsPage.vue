@@ -24,7 +24,7 @@
     </q-card>
 
     <!-- Theme Settings -->
-    <q-card flat bordered class="q-pa-md">
+    <q-card flat bordered class="q-pa-md q-mb-md">
       <q-card-section>
         <div class="text-h6 q-mb-md">{{ $t('settings.theme') }}</div>
         
@@ -43,6 +43,20 @@
         </q-select>
       </q-card-section>
     </q-card>
+
+    <!-- Font Size Settings -->
+    <q-card flat bordered class="q-pa-md">
+      <q-card-section>
+        <div class="text-h6 q-mb-md">{{ $t('settings.fontSize') }}</div>
+
+        <q-toggle
+          v-model="largeFontEnabled"
+          :label="$t('settings.largerFont')"
+          color="primary"
+          @update:model-value="changeFontSize"
+        />
+      </q-card-section>
+    </q-card>
   </q-page>
 </template>
 
@@ -56,6 +70,7 @@ const $q = useQuasar()
 
 const selectedLanguage = ref('hr-HR')
 const selectedTheme = ref('light')
+const largeFontEnabled = ref(false)
 
 const languageOptions = [
   { label: 'Hrvatski', value: 'hr-HR' },
@@ -77,6 +92,11 @@ onMounted(() => {
   const savedTheme = localStorage.getItem('user_theme') || 'light'
   selectedTheme.value = savedTheme
   applyTheme(savedTheme)
+
+  // Load saved font size preference
+  const savedFontSize = localStorage.getItem('user_font_size') || 'normal'
+  largeFontEnabled.value = savedFontSize === 'large'
+  applyFontSize(savedFontSize)
 })
 
 function changeLanguage(newLang) {
@@ -101,6 +121,26 @@ function changeTheme(newTheme) {
       : `Theme changed: ${newTheme === 'dark' ? 'Dark' : 'Light'}`,
     position: 'top'
   })
+}
+
+function changeFontSize(isLarge) {
+  const size = isLarge ? 'large' : 'normal'
+  localStorage.setItem('user_font_size', size)
+  applyFontSize(size)
+
+  $q.notify({
+    type: 'positive',
+    message:
+      locale.value === 'hr-HR'
+        ? `Veličina fonta: ${isLarge ? 'veća' : 'normalna'}`
+        : `Font size: ${isLarge ? 'larger' : 'normal'}`,
+    position: 'top'
+  })
+}
+
+function applyFontSize(size) {
+  const root = document.documentElement
+  root.style.fontSize = size === 'large' ? '18px' : '16px'
 }
 
 function applyTheme(theme) {

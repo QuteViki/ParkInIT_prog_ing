@@ -77,13 +77,24 @@
                 @click="viewECard(reservation)"
               />
               <q-btn
-                v-if="reservation.status === 'aktivna' || reservation.status === 'active'"
+                v-if="canCancelReservation(reservation)"
                 flat
                 label="OTKAŽI"
                 color="negative"
                 size="sm"
                 class="card-btn"
                 @click="cancelReservation(reservation)"
+              />
+              <q-btn
+                v-if="canHideReservation(reservation)"
+                flat
+                round
+                dense
+                icon="delete"
+                color="grey"
+                size="sm"
+                class="card-btn"
+                @click="hideReservation(reservation.id)"
               />
             </div>
           </div>
@@ -217,6 +228,14 @@ const { t } = useI18n()
 
 const API_URL = 'http://localhost:3000'
 
+const HIDDEN_KEY = 'hidden_reservations'
+const hiddenIds = ref(new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')))
+
+function hideReservation(id) {
+  hiddenIds.value.add(id)
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenIds.value]))
+}
+
 const activeFilter = ref('all')
 const loading = ref(false)
 const reservations = ref([])
@@ -259,6 +278,35 @@ const filterTabs = [
   { label: 'OTKAZANE', value: 'otkazana' },
 ]
 
+function isExpiredReservation(reservation) {
+  if (!reservation?.endDateTimeRaw) return false
+  const end = new Date(reservation.endDateTimeRaw)
+  return !Number.isNaN(end.getTime()) && end.getTime() <= Date.now()
+}
+
+function getTabBucket(reservation) {
+  const status = String(reservation?.status || '').trim().toLowerCase()
+  if (status === 'otkazana' || status === 'cancelled') return 'otkazana'
+
+  // Invalid/expired tickets go to Iskoristene in pilot mode.
+  if (status === 'placena' || status === 'aktivna' || status === 'active') {
+    return isExpiredReservation(reservation) ? 'placena' : 'aktivna'
+  }
+
+  // Future-ready: if a true "used" status exists, place it in Iskoristene.
+  if (status === 'iskoristena' || status === 'istekla' || status === 'finished') return 'placena'
+  return status
+}
+
+function canCancelReservation(reservation) {
+  return getTabBucket(reservation) === 'aktivna'
+}
+
+function canHideReservation(reservation) {
+  const bucket = getTabBucket(reservation)
+  return bucket === 'placena' || bucket === 'otkazana'
+}
+
 // Map backend Status_rezervacije to display labels
 function getStatusLabel(status) {
   const labels = {
@@ -287,8 +335,11 @@ function getStatusClass(status) {
 }
 
 const filteredReservations = computed(() => {
-  if (activeFilter.value === 'all') return reservations.value
-  return reservations.value.filter((r) => r.status === activeFilter.value)
+  const list =
+    activeFilter.value === 'all'
+      ? reservations.value
+      : reservations.value.filter((r) => getTabBucket(r) === activeFilter.value)
+  return list.filter((r) => !hiddenIds.value.has(r.id))
 })
 
 // Convert ISO datetime to time string "HH:MM"
@@ -341,6 +392,7 @@ async function loadReservations() {
       date: r.Vrijeme_pocetka ? new Date(r.Vrijeme_pocetka).toISOString().split('T')[0] : '',
       startTime: toTime(r.Vrijeme_pocetka),
       endTime: toTime(r.Vrijeme_isteka),
+      endDateTimeRaw: r.Vrijeme_isteka,
       vehicle: r.Registracija || '—',
       status: r.Status_rezervacije,
       price: '',
@@ -406,8 +458,8 @@ function cancelReservation(reservation) {
     persistent: true,
   }).onOk(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/reservations/${reservation.id}`, {
-        method: 'DELETE',
+      const res = await fetch(`${API_URL}/api/reservations/${reservation.id}/cancel`, {
+        method: 'PATCH',
         headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
       })
       if (!res.ok) {
