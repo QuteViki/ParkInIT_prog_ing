@@ -194,7 +194,7 @@ const formData = ref({
 const loading = ref(false)
 
 const userVehicles = ref([])
-const vehicleOptions = computed(() => userVehicles.value.map(v => v.registracija))
+const vehicleOptions = computed(() => userVehicles.value.map((v) => v.registracija))
 
 async function loadUserVehicles() {
   try {

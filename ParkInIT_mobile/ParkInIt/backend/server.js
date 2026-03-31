@@ -8,7 +8,17 @@ const jwt = require("jsonwebtoken");
 const QRCode = require("qrcode");
 const { Resend } = require("resend");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resendApiKey = process.env.RESEND_API_KEY;
+const resend =
+  resendApiKey && !resendApiKey.includes("your_api_key")
+    ? new Resend(resendApiKey)
+    : null;
+
+if (!resend) {
+  console.warn(
+    "[EMAIL] RESEND_API_KEY is missing or placeholder. Email sending is disabled.",
+  );
+}
 
 const app = express();
 app.use(cors());
@@ -108,7 +118,14 @@ app.post("/api/auth/register", async (req, res) => {
     const { firstName, lastName, personalId, phone, email, password } =
       req.body || {};
 
-    if (!firstName || !lastName || !personalId || !phone || !email || !password) {
+    if (
+      !firstName ||
+      !lastName ||
+      !personalId ||
+      !phone ||
+      !email ||
+      !password
+    ) {
       return res.status(400).json({ error: "Sva polja su obavezna" });
     }
 
@@ -270,13 +287,15 @@ app.get("/api/user/vehicles", authRequired, async (req, res) => {
     const userId = req.user.sub;
     const [rows] = await pool.execute(
       "SELECT Registracija, Marka_vozila, Tip_vozila FROM Vozilo WHERE ID_korisnika = ? ORDER BY Registracija",
-      [userId]
+      [userId],
     );
-    return res.json(rows.map(r => ({
-      registracija: r.Registracija,
-      marka: r.Marka_vozila,
-      tip: r.Tip_vozila,
-    })));
+    return res.json(
+      rows.map((r) => ({
+        registracija: r.Registracija,
+        marka: r.Marka_vozila,
+        tip: r.Tip_vozila,
+      })),
+    );
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "server error" });
@@ -289,18 +308,22 @@ app.post("/api/user/vehicles", authRequired, async (req, res) => {
     const userId = req.user.sub;
     const { registracija, marka, tip } = req.body || {};
     if (!registracija || !marka) {
-      return res.status(400).json({ error: "Registracija i marka su obavezni" });
+      return res
+        .status(400)
+        .json({ error: "Registracija i marka su obavezni" });
     }
     const reg = String(registracija).trim().toUpperCase();
     const brand = String(marka).trim();
     try {
       await pool.execute(
         "INSERT INTO Vozilo (Registracija, ID_korisnika, Marka_vozila, Tip_vozila) VALUES (?, ?, ?, ?)",
-        [reg, userId, brand, tip || null]
+        [reg, userId, brand, tip || null],
       );
     } catch (dbErr) {
       if (dbErr.code === "ER_DUP_ENTRY") {
-        return res.status(409).json({ error: "Vozilo s tom registracijom već postoji" });
+        return res
+          .status(409)
+          .json({ error: "Vozilo s tom registracijom već postoji" });
       }
       throw dbErr;
     }
@@ -312,23 +335,27 @@ app.post("/api/user/vehicles", authRequired, async (req, res) => {
 });
 
 // DELETE /api/user/vehicles/:registration - Delete a vehicle (only owner)
-app.delete("/api/user/vehicles/:registration", authRequired, async (req, res) => {
-  try {
-    const userId = req.user.sub;
-    const reg = String(req.params.registration).trim().toUpperCase();
-    const [result] = await pool.execute(
-      "DELETE FROM Vozilo WHERE Registracija = ? AND ID_korisnika = ?",
-      [reg, userId]
-    );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Vozilo nije pronađeno" });
+app.delete(
+  "/api/user/vehicles/:registration",
+  authRequired,
+  async (req, res) => {
+    try {
+      const userId = req.user.sub;
+      const reg = String(req.params.registration).trim().toUpperCase();
+      const [result] = await pool.execute(
+        "DELETE FROM Vozilo WHERE Registracija = ? AND ID_korisnika = ?",
+        [reg, userId],
+      );
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "Vozilo nije pronađeno" });
+      }
+      return res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "server error" });
     }
-    return res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "server error" });
-  }
-});
+  },
+);
 
 // ==================== PARKING MANAGEMENT ====================
 
@@ -651,7 +678,7 @@ app.post("/api/reservations", authRequired, async (req, res) => {
         [userId, regPlate, endTime, startTime],
       );
       if (plateConflicts.length > 0) {
-        const loc = plateConflicts[0].Adresa_parkinga || 'drugoj lokaciji';
+        const loc = plateConflicts[0].Adresa_parkinga || "drugoj lokaciji";
         return res.status(409).json({
           error: `Vozilo ${regPlate} već ima rezervaciju za taj period (${loc}).`,
           existingLocation: loc,
@@ -939,7 +966,11 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
 
     const start = new Date(startDateTime);
     const end = new Date(endDateTime);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    if (
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime()) ||
+      end <= start
+    ) {
       return res.status(400).json({ error: "Invalid reservation time range" });
     }
 
@@ -959,7 +990,8 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
       return res.status(404).json({ error: "Parkirno mjesto nije pronađeno" });
     }
 
-    const spaceTypeRaw = spacePricingRows[0].Vrsta_parkirnog_mjesta || "standardno";
+    const spaceTypeRaw =
+      spacePricingRows[0].Vrsta_parkirnog_mjesta || "standardno";
     const baseRate = Number(spacePricingRows[0].Cijena_parkinga) || 1.5;
     const hourlyRate =
       spaceTypeRaw === "invalidsko" ? DISABLED_SPACE_HOURLY_PRICE : baseRate;
@@ -991,7 +1023,7 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
       [userId, vehicle, endDateTime, startDateTime],
     );
     if (plateConflicts.length > 0) {
-      const loc = plateConflicts[0].Adresa_parkinga || 'drugoj lokaciji';
+      const loc = plateConflicts[0].Adresa_parkinga || "drugoj lokaciji";
       return res.status(409).json({
         error: `Vozilo ${vehicle} već ima rezervaciju za taj period (${loc}).`,
         existingLocation: loc,
@@ -1065,22 +1097,31 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
 
     // Send e-karta to user's email
     const userEmail = user.Email_adresa_korisnika;
-    const userName = `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
-    const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
-    const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
+    const userName =
+      `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
+    const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+    const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
 
-    if (userEmail && process.env.RESEND_API_KEY && !process.env.RESEND_API_KEY.includes("your_api_key")) {
+    if (userEmail && resend) {
       try {
         await resend.emails.send({
           from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
           to: userEmail,
           subject: `E-karta ${bookingCode} – ParkInIT`,
-          attachments: [{
-            filename: "qrcode.png",
-            content: qrBuffer.toString("base64"),
-            content_type: "image/png",
-            content_id: "qrcode",
-          }],
+          attachments: [
+            {
+              filename: "qrcode.png",
+              content: qrBuffer.toString("base64"),
+              content_type: "image/png",
+              content_id: "qrcode",
+            },
+          ],
           html: `
             <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
               <div style="background:#1a237e;color:white;padding:20px 24px;">
@@ -1133,7 +1174,10 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
         console.log(`[EMAIL] E-karta ${bookingCode} sent to ${userEmail}`);
       } catch (emailErr) {
         // Email failure should not block the payment success response
-        console.error("[EMAIL] Failed to send e-karta email:", emailErr.message);
+        console.error(
+          "[EMAIL] Failed to send e-karta email:",
+          emailErr.message,
+        );
       }
     }
 

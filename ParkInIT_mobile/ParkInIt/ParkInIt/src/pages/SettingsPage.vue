@@ -6,7 +6,7 @@
     <q-card flat bordered class="q-pa-md q-mb-md">
       <q-card-section>
         <div class="text-h6 q-mb-md">{{ $t('settings.language') }}</div>
-        
+
         <q-select
           v-model="selectedLanguage"
           :options="languageOptions"
@@ -27,7 +27,7 @@
     <q-card flat bordered class="q-pa-md q-mb-md">
       <q-card-section>
         <div class="text-h6 q-mb-md">{{ $t('settings.theme') }}</div>
-        
+
         <q-select
           v-model="selectedTheme"
           :options="themeOptions"
@@ -74,12 +74,12 @@ const largeFontEnabled = ref(false)
 
 const languageOptions = [
   { label: 'Hrvatski', value: 'hr-HR' },
-  { label: 'English', value: 'en-US' }
+  { label: 'English', value: 'en-US' },
 ]
 
 const themeOptions = [
   { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' }
+  { label: 'Dark', value: 'dark' },
 ]
 
 onMounted(() => {
@@ -102,24 +102,25 @@ onMounted(() => {
 function changeLanguage(newLang) {
   locale.value = newLang
   localStorage.setItem('user_language', newLang)
-  
+
   $q.notify({
     type: 'positive',
     message: newLang === 'hr-HR' ? 'Jezik promijenjen' : 'Language changed',
-    position: 'top'
+    position: 'top',
   })
 }
 
 function changeTheme(newTheme) {
   localStorage.setItem('user_theme', newTheme)
   applyTheme(newTheme)
-  
+
   $q.notify({
     type: 'positive',
-    message: locale.value === 'hr-HR' 
-      ? `Tema promijenjena: ${newTheme === 'dark' ? 'Tamna' : 'Svijetla'}`
-      : `Theme changed: ${newTheme === 'dark' ? 'Dark' : 'Light'}`,
-    position: 'top'
+    message:
+      locale.value === 'hr-HR'
+        ? `Tema promijenjena: ${newTheme === 'dark' ? 'Tamna' : 'Svijetla'}`
+        : `Theme changed: ${newTheme === 'dark' ? 'Dark' : 'Light'}`,
+    position: 'top',
   })
 }
 
@@ -134,7 +135,7 @@ function changeFontSize(isLarge) {
       locale.value === 'hr-HR'
         ? `Veličina fonta: ${isLarge ? 'veća' : 'normalna'}`
         : `Font size: ${isLarge ? 'larger' : 'normal'}`,
-    position: 'top'
+    position: 'top',
   })
 }
 

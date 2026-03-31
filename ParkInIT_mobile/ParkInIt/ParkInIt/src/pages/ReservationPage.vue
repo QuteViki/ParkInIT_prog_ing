@@ -285,7 +285,9 @@ function isExpiredReservation(reservation) {
 }
 
 function getTabBucket(reservation) {
-  const status = String(reservation?.status || '').trim().toLowerCase()
+  const status = String(reservation?.status || '')
+    .trim()
+    .toLowerCase()
   if (status === 'otkazana' || status === 'cancelled') return 'otkazana'
 
   // Invalid/expired tickets go to Iskoristene in pilot mode.
