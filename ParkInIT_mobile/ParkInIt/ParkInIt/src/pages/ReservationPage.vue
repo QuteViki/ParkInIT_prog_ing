@@ -226,7 +226,7 @@ const router = useRouter()
 const $q = useQuasar()
 const { t } = useI18n()
 
-const API_URL = 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL
 
 const HIDDEN_KEY = 'hidden_reservations'
 const hiddenIds = ref(new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')))

@@ -54,7 +54,7 @@ const route = useRoute()
 const $q = useQuasar()
 const { t } = useI18n()
 
-const API_URL = 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL
 const processingPayment = ref(true)
 const paymentError = ref(null)
 const paymentSuccess = ref(false)

@@ -95,8 +95,7 @@ const showPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
 
-// CHANGE THIS to your actual API URL
-const API_URL = 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL
 
 function goToRegister() {
   router.push('/register')

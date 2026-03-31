@@ -172,7 +172,7 @@ import { useQuasar } from 'quasar'
 const router = useRouter()
 const $q = useQuasar()
 
-const API_URL = 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL
 const DISABLED_SPACE_HOURLY_PRICE = 0.5
 
 // State

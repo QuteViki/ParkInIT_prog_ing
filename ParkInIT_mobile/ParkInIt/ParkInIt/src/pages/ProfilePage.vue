@@ -116,8 +116,12 @@
                 </q-item-section>
                 <q-item-section side>
                   <q-btn
-                    flat round dense icon="delete"
-                    color="negative" size="sm"
+                    flat
+                    round
+                    dense
+                    icon="delete"
+                    color="negative"
+                    size="sm"
                     @click="deleteVehicle(v.registracija)"
                   />
                 </q-item-section>
@@ -128,7 +132,6 @@
             </div>
           </q-card-section>
         </q-card>
-
       </div>
     </div>
 
@@ -215,11 +218,7 @@
               outlined
               :rules="[(val) => !!val || 'Marka je obavezna']"
             />
-            <q-input
-              v-model="vehicleForm.tip"
-              label="Tip vozila (opcionalno)"
-              outlined
-            />
+            <q-input v-model="vehicleForm.tip" label="Tip vozila (opcionalno)" outlined />
             <div class="row q-gutter-sm justify-end">
               <q-btn flat label="Odustani" v-close-popup />
               <q-btn type="submit" color="primary" label="Spremi" :loading="savingVehicle" />
@@ -237,7 +236,7 @@ import { useQuasar } from 'quasar'
 
 const $q = useQuasar()
 
-const API_URL = 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL
 
 const profile = ref({
   ime: '',

@@ -160,7 +160,7 @@ const $q = useQuasar()
 const { t } = useI18n()
 
 // API Configuration
-const API_URL = 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL
 const DISABLED_SPACE_HOURLY_PRICE = 0.5
 
 // Get parking data from localStorage (set by new ParkingSpacePageNew)
