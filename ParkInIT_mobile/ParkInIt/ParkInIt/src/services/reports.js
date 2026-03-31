@@ -1,9 +1,6 @@
 import { api } from 'boot/axios'
 
-// IMPORTANT: Change this to your actual server IP
-// For physical Android device, use your computer's local IP
-// For emulator, use 10.0.2.2
-const BASE_URL = 'http://192.168.146.153:3000'
+const BASE_URL = import.meta.env.VITE_API_URL
 
 /**
  * Upload reporta (slika + meta) u backend -> MySQL parking_reports

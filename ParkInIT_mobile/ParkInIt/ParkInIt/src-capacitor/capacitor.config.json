@@ -1,8 +1,5 @@
 {
   "appId": "com.parkinit.app",
   "appName": "ParkInIT",
-  "webDir": "www",
-  "android": {
-    "allowMixedContent": true
-  }
+  "webDir": "www"
 }

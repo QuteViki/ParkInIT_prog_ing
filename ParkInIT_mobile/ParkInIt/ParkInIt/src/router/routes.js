@@ -6,7 +6,6 @@ const routes = [
       { path: '', redirect: '/parking' },
       { path: 'parking', component: () => import('pages/ParkingSpacePageNew.vue') },
       { path: 'reservation-confirm', component: () => import('pages/ReservationConfirmPage.vue') },
-      { path: 'payment-test', component: () => import('pages/PaymentTestPage.vue') },
       { path: 'payment-callback', component: () => import('pages/PaymentCallbackPage.vue') },
       { path: 'payment-success', component: () => import('pages/PaymentSuccessPage.vue') },
       { path: 'reservation', component: () => import('pages/ReservationPage.vue') },
