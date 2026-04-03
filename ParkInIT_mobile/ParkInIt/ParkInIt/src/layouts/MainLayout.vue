@@ -1,7 +1,7 @@
 <template>
   <q-layout view="lHh Lpr lFf">
     <!-- HEADER -->
-    <q-header elevated>
+    <q-header elevated style="padding-top: env(safe-area-inset-top)">
       <q-toolbar>
         <img
           src="~assets/logo.png"
@@ -10,6 +10,7 @@
           @click="toggleLeftDrawer"
         />
         <q-toolbar-title>ParkInIT</q-toolbar-title>
+        <q-btn flat round dense icon="menu" aria-label="Izbornik" @click="toggleLeftDrawer" />
       </q-toolbar>
     </q-header>
 
@@ -61,18 +62,9 @@
     </q-drawer>
 
     <!-- CONTENT -->
-    <q-page-container class="page-with-footer">
+    <q-page-container style="padding-bottom: env(safe-area-inset-bottom)">
       <router-view />
     </q-page-container>
-
-    <!-- FOOTER: BACK / HOME / MENU -->
-    <q-footer elevated>
-      <q-toolbar class="justify-around">
-        <q-btn flat round icon="arrow_back" aria-label="Povratak" @click="goBack" />
-        <q-btn flat round icon="home" aria-label="Home" @click="goHome" />
-        <q-btn flat round icon="menu" aria-label="Izbornik" @click="toggleLeftDrawer" />
-      </q-toolbar>
-    </q-footer>
   </q-layout>
 </template>
 
@@ -95,16 +87,6 @@ const isAdmin = computed(() => {
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value
-}
-
-function goHome() {
-  const isLoggedIn = !!localStorage.getItem('auth_token')
-  router.push(isLoggedIn ? '/' : '/login')
-}
-
-function goBack() {
-  // radi i na mobitelu i u browseru
-  router.back()
 }
 
 function logout() {

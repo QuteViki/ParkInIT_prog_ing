@@ -10,7 +10,7 @@
             </q-avatar>
             <div class="text-h6">{{ profile.ime }} {{ profile.prezime }}</div>
             <q-badge :color="profile.role === 'admin' ? 'negative' : 'primary'" class="q-mt-xs">
-              {{ profile.role === 'admin' ? 'Administrator' : 'Korisnik' }}
+              {{ profile.role === 'admin' ? $t('profile.roleAdmin') : $t('profile.roleUser') }}
             </q-badge>
           </q-card-section>
 
@@ -24,7 +24,7 @@
                   <q-icon name="email" color="primary" />
                 </q-item-section>
                 <q-item-section>
-                  <q-item-label caption>E-mail</q-item-label>
+                  <q-item-label caption>{{ $t('profile.email') }}</q-item-label>
                   <q-item-label>{{ profile.email }}</q-item-label>
                 </q-item-section>
               </q-item>
@@ -33,7 +33,7 @@
                   <q-icon name="phone" color="primary" />
                 </q-item-section>
                 <q-item-section>
-                  <q-item-label caption>Telefonski broj</q-item-label>
+                  <q-item-label caption>{{ $t('profile.phone') }}</q-item-label>
                   <q-item-label>{{ profile.telefonski_broj || '—' }}</q-item-label>
                 </q-item-section>
               </q-item>
@@ -42,19 +42,19 @@
                   <q-icon name="badge" color="primary" />
                 </q-item-section>
                 <q-item-section>
-                  <q-item-label caption>OIB</q-item-label>
+                  <q-item-label caption>{{ $t('profile.oib') }}</q-item-label>
                   <q-item-label>{{ profile.oib || '—' }}</q-item-label>
                 </q-item-section>
               </q-item>
             </q-list>
 
             <div class="row q-gutter-sm q-mt-md justify-center">
-              <q-btn outline color="primary" icon="edit" label="Uredi profil" @click="startEdit" />
+              <q-btn outline color="primary" icon="edit" :label="$t('profile.editProfile')" @click="startEdit" />
               <q-btn
                 outline
                 color="orange"
                 icon="lock"
-                label="Promijeni lozinku"
+                :label="$t('profile.changePassword')"
                 @click="passwordDialog = true"
               />
             </div>
@@ -65,28 +65,28 @@
             <q-form @submit.prevent="saveProfile" class="q-gutter-md">
               <q-input
                 v-model="editForm.ime"
-                label="Ime"
+                :label="$t('profile.firstName')"
                 outlined
-                :rules="[(val) => !!val || 'Ime je obavezno']"
+                :rules="[(val) => !!val || $t('profile.firstNameRequired')]"
               />
               <q-input
                 v-model="editForm.prezime"
-                label="Prezime"
+                :label="$t('profile.lastName')"
                 outlined
-                :rules="[(val) => !!val || 'Prezime je obavezno']"
+                :rules="[(val) => !!val || $t('profile.lastNameRequired')]"
               />
               <q-input
                 v-model="editForm.email"
-                label="E-mail"
+                :label="$t('profile.email')"
                 type="email"
                 outlined
-                :rules="[(val) => !!val || 'E-mail je obavezan']"
+                :rules="[(val) => !!val || $t('profile.emailRequired')]"
               />
-              <q-input v-model="editForm.telefonski_broj" label="Telefonski broj" outlined />
+              <q-input v-model="editForm.telefonski_broj" :label="$t('profile.phone')" outlined />
 
               <div class="row q-gutter-sm justify-center">
-                <q-btn type="submit" color="primary" icon="save" label="Spremi" :loading="saving" />
-                <q-btn flat color="grey" icon="close" label="Odustani" @click="cancelEdit" />
+                <q-btn type="submit" color="primary" icon="save" :label="$t('save')" :loading="saving" />
+                <q-btn flat color="grey" icon="close" :label="$t('cancel')" @click="cancelEdit" />
               </div>
             </q-form>
           </q-card-section>
@@ -97,7 +97,7 @@
           <q-card-section class="row items-center justify-between q-py-sm">
             <div class="text-subtitle1 text-weight-medium">
               <q-icon name="directions_car" color="primary" class="q-mr-sm" />
-              Moja vozila
+              {{ $t('profile.myVehicles') }}
             </div>
             <q-btn flat round dense icon="add" color="primary" @click="vehicleDialog = true" />
           </q-card-section>
@@ -128,7 +128,7 @@
               </q-item>
             </q-list>
             <div v-else class="text-grey text-center q-py-sm text-body2">
-              Nema spremljenih vozila
+              {{ $t('profile.noVehicles') }}
             </div>
           </q-card-section>
         </q-card>
@@ -139,14 +139,14 @@
     <q-dialog v-model="passwordDialog">
       <q-card style="min-width: 320px">
         <q-card-section>
-          <div class="text-h6">Promjena lozinke</div>
+          <div class="text-h6">{{ $t('profile.passwordDialog') }}</div>
         </q-card-section>
         <q-separator />
         <q-card-section>
           <q-form @submit.prevent="changePassword" class="q-gutter-md">
             <q-input
               v-model="pwForm.currentPassword"
-              label="Trenutna lozinka"
+              :label="$t('profile.currentPassword')"
               :type="showPw.current ? 'text' : 'password'"
               outlined
             >
@@ -160,7 +160,7 @@
             </q-input>
             <q-input
               v-model="pwForm.newPassword"
-              label="Nova lozinka"
+              :label="$t('profile.newPassword')"
               :type="showPw.new ? 'text' : 'password'"
               outlined
             >
@@ -174,10 +174,10 @@
             </q-input>
             <q-input
               v-model="pwForm.confirmPassword"
-              label="Potvrda lozinke"
+              :label="$t('profile.confirmPassword')"
               :type="showPw.confirm ? 'text' : 'password'"
               outlined
-              :rules="[(val) => val === pwForm.newPassword || 'Lozinke se ne podudaraju']"
+              :rules="[(val) => val === pwForm.newPassword || $t('profile.passwordMismatch')]"
             >
               <template #append>
                 <q-icon
@@ -189,8 +189,8 @@
             </q-input>
 
             <div class="row q-gutter-sm justify-end">
-              <q-btn flat label="Odustani" v-close-popup />
-              <q-btn type="submit" color="primary" label="Promijeni" :loading="changingPw" />
+              <q-btn flat :label="$t('cancel')" v-close-popup />
+              <q-btn type="submit" color="primary" :label="$t('profile.changeBtn')" :loading="changingPw" />
             </div>
           </q-form>
         </q-card-section>
@@ -201,27 +201,27 @@
     <q-dialog v-model="vehicleDialog">
       <q-card style="min-width: 320px">
         <q-card-section>
-          <div class="text-h6">Dodaj vozilo</div>
+          <div class="text-h6">{{ $t('profile.addVehicleTitle') }}</div>
         </q-card-section>
         <q-separator />
         <q-card-section>
           <q-form @submit.prevent="addVehicle" class="q-gutter-md">
             <q-input
               v-model="vehicleForm.registracija"
-              label="Registracija"
+              :label="$t('profile.vehicleReg')"
               outlined
-              :rules="[(val) => !!val || 'Registracija je obavezna']"
+              :rules="[(val) => !!val || $t('profile.vehicleRegRequired')]"
             />
             <q-input
               v-model="vehicleForm.marka"
-              label="Marka vozila"
+              :label="$t('profile.vehicleBrand')"
               outlined
-              :rules="[(val) => !!val || 'Marka je obavezna']"
+              :rules="[(val) => !!val || $t('profile.vehicleBrandRequired')]"
             />
-            <q-input v-model="vehicleForm.tip" label="Tip vozila (opcionalno)" outlined />
+            <q-input v-model="vehicleForm.tip" :label="$t('profile.vehicleType')" outlined />
             <div class="row q-gutter-sm justify-end">
-              <q-btn flat label="Odustani" v-close-popup />
-              <q-btn type="submit" color="primary" label="Spremi" :loading="savingVehicle" />
+              <q-btn flat :label="$t('cancel')" v-close-popup />
+              <q-btn type="submit" color="primary" :label="$t('save')" :loading="savingVehicle" />
             </div>
           </q-form>
         </q-card-section>
@@ -233,8 +233,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
+import { useI18n } from 'vue-i18n'
 
 const $q = useQuasar()
+const { t } = useI18n()
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -274,7 +276,7 @@ async function loadProfile() {
     if (!res.ok) throw new Error('Failed to load profile')
     profile.value = await res.json()
   } catch {
-    $q.notify({ type: 'negative', message: 'Greška pri učitavanju profila', position: 'top' })
+    $q.notify({ type: 'negative', message: t('profile.loadError'), position: 'top' })
   }
 }
 
@@ -305,11 +307,11 @@ async function saveProfile() {
     })
     if (!res.ok) {
       const err = await res.json()
-      throw new Error(err.error || 'Greška pri spremanju')
+      throw new Error(err.error || t('profile.saveError'))
     }
     profile.value = { ...profile.value, ...editForm.value }
     editMode.value = false
-    $q.notify({ type: 'positive', message: 'Profil uspješno ažuriran', position: 'top' })
+    $q.notify({ type: 'positive', message: t('profile.saveSuccess'), position: 'top' })
   } catch (err) {
     $q.notify({ type: 'negative', message: err.message, position: 'top' })
   } finally {
@@ -319,7 +321,7 @@ async function saveProfile() {
 
 async function changePassword() {
   if (pwForm.value.newPassword !== pwForm.value.confirmPassword) {
-    $q.notify({ type: 'negative', message: 'Lozinke se ne podudaraju', position: 'top' })
+    $q.notify({ type: 'negative', message: t('profile.passwordMismatch'), position: 'top' })
     return
   }
   changingPw.value = true
@@ -337,11 +339,11 @@ async function changePassword() {
     })
     if (!res.ok) {
       const err = await res.json()
-      throw new Error(err.error || 'Greška pri promjeni lozinke')
+      throw new Error(err.error || t('profile.passwordError'))
     }
     passwordDialog.value = false
     pwForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' }
-    $q.notify({ type: 'positive', message: 'Lozinka uspješno promijenjena', position: 'top' })
+    $q.notify({ type: 'positive', message: t('profile.passwordSuccess'), position: 'top' })
   } catch (err) {
     $q.notify({ type: 'negative', message: err.message, position: 'top' })
   } finally {
@@ -373,12 +375,12 @@ async function addVehicle() {
     })
     if (!res.ok) {
       const err = await res.json()
-      throw new Error(err.error || 'Greška pri dodavanju vozila')
+      throw new Error(err.error || t('profile.vehicleAddError'))
     }
     vehicleDialog.value = false
     vehicleForm.value = { registracija: '', marka: '', tip: '' }
     await loadVehicles()
-    $q.notify({ type: 'positive', message: 'Vozilo dodano', position: 'top' })
+    $q.notify({ type: 'positive', message: t('profile.vehicleAdded'), position: 'top' })
   } catch (err) {
     $q.notify({ type: 'negative', message: err.message, position: 'top' })
   } finally {
@@ -392,9 +394,9 @@ async function deleteVehicle(reg) {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
     })
-    if (!res.ok) throw new Error('Greška pri brisanju vozila')
+    if (!res.ok) throw new Error(t('profile.vehicleDeleteError'))
     await loadVehicles()
-    $q.notify({ type: 'positive', message: 'Vozilo obrisano', position: 'top' })
+    $q.notify({ type: 'positive', message: t('profile.vehicleDeleted'), position: 'top' })
   } catch (err) {
     $q.notify({ type: 'negative', message: err.message, position: 'top' })
   }

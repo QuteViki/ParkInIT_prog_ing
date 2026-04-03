@@ -61,11 +61,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const $q = useQuasar()
 
 const selectedLanguage = ref('hr-HR')
@@ -77,10 +77,10 @@ const languageOptions = [
   { label: 'English', value: 'en-US' },
 ]
 
-const themeOptions = [
-  { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' },
-]
+const themeOptions = computed(() => [
+  { label: t('settings.light'), value: 'light' },
+  { label: t('settings.dark'), value: 'dark' },
+])
 
 onMounted(() => {
   // Load saved language preference, default to English
@@ -105,7 +105,7 @@ function changeLanguage(newLang) {
 
   $q.notify({
     type: 'positive',
-    message: newLang === 'hr-HR' ? 'Jezik promijenjen' : 'Language changed',
+    message: t('settings.languageChanged'),
     position: 'top',
   })
 }
@@ -116,10 +116,7 @@ function changeTheme(newTheme) {
 
   $q.notify({
     type: 'positive',
-    message:
-      locale.value === 'hr-HR'
-        ? `Tema promijenjena: ${newTheme === 'dark' ? 'Tamna' : 'Svijetla'}`
-        : `Theme changed: ${newTheme === 'dark' ? 'Dark' : 'Light'}`,
+    message: newTheme === 'dark' ? t('settings.themeChangedDark') : t('settings.themeChangedLight'),
     position: 'top',
   })
 }
@@ -131,10 +128,7 @@ function changeFontSize(isLarge) {
 
   $q.notify({
     type: 'positive',
-    message:
-      locale.value === 'hr-HR'
-        ? `Veličina fonta: ${isLarge ? 'veća' : 'normalna'}`
-        : `Font size: ${isLarge ? 'larger' : 'normal'}`,
+    message: isLarge ? t('settings.fontSizeLarge') : t('settings.fontSizeNormal'),
     position: 'top',
   })
 }

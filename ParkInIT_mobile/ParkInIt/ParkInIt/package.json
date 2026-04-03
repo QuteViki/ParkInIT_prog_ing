@@ -15,7 +15,6 @@
     "postinstall": "quasar prepare"
   },
   "dependencies": {
-    "@capacitor/camera": "^8.0.0",
     "@capacitor/geolocation": "^8.0.0",
     "@quasar/extras": "^1.16.4",
     "axios": "^1.2.1",
@@ -37,6 +36,7 @@
     "globals": "^16.4.0",
     "postcss": "^8.4.14",
     "prettier": "^3.3.3",
+    "sharp": "^0.34.5",
     "vite-plugin-checker": "^0.11.0",
     "vue-eslint-parser": "^10.2.0"
   },

@@ -109,6 +109,41 @@
       </q-page>
     </q-page-container>
   </q-layout>
+
+  <!-- Add First Vehicle Dialog -->
+  <q-dialog v-model="vehicleDialog" persistent>
+    <q-card style="min-width: 320px; max-width: 95vw">
+      <q-card-section class="column items-center q-pt-lg">
+        <q-icon name="directions_car" size="48px" color="primary" class="q-mb-sm" />
+        <div class="text-h6 text-center">{{ $t('registration.addFirstVehicle') }}</div>
+        <div class="text-body2 text-grey text-center q-mt-xs">
+          {{ $t('registration.addFirstVehicleDesc') }}
+        </div>
+      </q-card-section>
+      <q-separator />
+      <q-card-section>
+        <q-form @submit.prevent="addVehicleAndGo" class="q-gutter-md">
+          <q-input
+            v-model="vehicleForm.registracija"
+            :label="$t('profile.vehicleReg')"
+            outlined
+            :rules="[(val) => !!val || $t('profile.vehicleRegRequired')]"
+          />
+          <q-input
+            v-model="vehicleForm.marka"
+            :label="$t('profile.vehicleBrand')"
+            outlined
+            :rules="[(val) => !!val || $t('profile.vehicleBrandRequired')]"
+          />
+          <q-input v-model="vehicleForm.tip" :label="$t('profile.vehicleType')" outlined />
+          <div class="row q-gutter-sm justify-end">
+            <q-btn flat :label="$t('registration.skipForNow')" @click="skipVehicle" />
+            <q-btn type="submit" color="primary" :label="$t('add')" :loading="savingVehicle" />
+          </div>
+        </q-form>
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 </template>
 
 <script setup>
@@ -133,6 +168,10 @@ const formData = ref({
 const showPassword = ref(false)
 const loading = ref(false)
 const errorMessage = ref('')
+
+const vehicleDialog = ref(false)
+const vehicleForm = ref({ registracija: '', marka: '', tip: '' })
+const savingVehicle = ref(false)
 
 const API_URL = import.meta.env.VITE_API_URL
 
@@ -170,8 +209,24 @@ async function handleRegister() {
       position: 'top',
     })
 
-    // Redirect to login
-    router.replace('/login')
+    // Auto-login the new user
+    try {
+      const loginRes = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.value.email, password: formData.value.password }),
+      })
+      if (loginRes.ok) {
+        const loginData = await loginRes.json()
+        localStorage.setItem('auth_token', loginData.token)
+        localStorage.setItem('auth_user', JSON.stringify(loginData.user))
+      }
+    } catch {
+      // auto-login failed silently; user will be asked to log in manually
+    }
+
+    // Show vehicle dialog (works even if auto-login failed — vehicle save will just 401 silently)
+    vehicleDialog.value = true
   } catch (error) {
     console.error('Registration error:', error)
     errorMessage.value = 'Greška u povezivanju sa serverom'
@@ -182,6 +237,36 @@ async function handleRegister() {
 
 function goBack() {
   router.back()
+}
+
+async function addVehicleAndGo() {
+  savingVehicle.value = true
+  try {
+    const res = await fetch(`${API_URL}/api/user/vehicles`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+      },
+      body: JSON.stringify(vehicleForm.value),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || t('profile.vehicleAddError'))
+    }
+    $q.notify({ type: 'positive', message: t('profile.vehicleAdded'), position: 'top' })
+  } catch (err) {
+    $q.notify({ type: 'negative', message: err.message, position: 'top' })
+  } finally {
+    savingVehicle.value = false
+    vehicleDialog.value = false
+    router.replace('/')
+  }
+}
+
+function skipVehicle() {
+  vehicleDialog.value = false
+  router.replace('/')
 }
 
 // function goToLogin() {

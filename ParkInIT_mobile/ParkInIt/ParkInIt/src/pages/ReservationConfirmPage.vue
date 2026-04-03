@@ -201,7 +201,12 @@ async function loadUserVehicles() {
     const res = await fetch(`${API_URL}/api/user/vehicles`, {
       headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
     })
-    if (res.ok) userVehicles.value = await res.json()
+    if (res.ok) {
+      userVehicles.value = await res.json()
+      if (userVehicles.value.length === 1) {
+        formData.value.vehicle = userVehicles.value[0].registracija
+      }
+    }
   } catch {
     // silently fail - user can still type registration manually
   }
