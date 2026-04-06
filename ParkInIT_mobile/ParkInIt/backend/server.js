@@ -1095,23 +1095,25 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
   }
 });
 
-    if (!bookingCode || !amount || !reservation) {
-      return res.status(400).json({ error: "Missing required fields" });
+app.post("/api/payments/confirm-orphan-do-not-use", authRequired, async (req, res) => {
+  try {
+    const { bookingCode, reservation } = req.body || {};
+    const userId = Number(req.user.sub);
+    const DISABLED_SPACE_HOURLY_PRICE = 0.5;
+
+    if (!bookingCode || !reservation) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
     const { spaceNumber, vehicle, startDateTime, endDateTime } = reservation;
     if (!spaceNumber || !vehicle || !startDateTime || !endDateTime) {
-      return res.status(400).json({ error: "Missing reservation details" });
+      return res.status(400).json({ success: false, message: "Missing reservation details" });
     }
 
     const start = new Date(startDateTime);
     const end = new Date(endDateTime);
-    if (
-      Number.isNaN(start.getTime()) ||
-      Number.isNaN(end.getTime()) ||
-      end <= start
-    ) {
-      return res.status(400).json({ error: "Invalid reservation time range" });
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      return res.status(400).json({ success: false, message: "Invalid reservation time range" });
     }
 
     const durationMs = end - start;
