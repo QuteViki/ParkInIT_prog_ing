@@ -388,12 +388,25 @@ async function handlePayment() {
       throw new Error(paymentData.message || 'Greška pri plaćanju')
     }
 
-    // Store e-karta data for the success page
-    localStorage.setItem('ekartaData', JSON.stringify(paymentData))
+    // Save pending reservation so PaymentSuccessPage can confirm it after WSPay redirect
+    localStorage.setItem('pendingReservation', JSON.stringify(reservationData))
+    localStorage.removeItem('ekartaData')
     localStorage.removeItem('reservationData')
 
-    // Navigate to e-karta success page
-    router.push('/payment-success')
+    // Submit form to WSPay payment page
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = paymentData.paymentUrl
+    form.style.display = 'none'
+    Object.entries(paymentData.formData).forEach(([key, value]) => {
+      const input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = key
+      input.value = value
+      form.appendChild(input)
+    })
+    document.body.appendChild(form)
+    form.submit()
   } catch (error) {
     console.error('Payment initiation error:', error)
     $q.notify({

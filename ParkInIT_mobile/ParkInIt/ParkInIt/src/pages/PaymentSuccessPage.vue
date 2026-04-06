@@ -2,98 +2,106 @@
   <q-layout view="lHh Lpr lFf">
     <q-page-container>
       <q-page class="ekarta-page">
-        <!-- Header -->
-        <div class="ekarta-header">
-          <p class="header-label">PLAĆANJE USPJEŠNO</p>
+        <div v-if="loading" class="loading-wrap">
+          <q-spinner color="white" size="48px" />
+          <p class="loading-text">Potvrdujem placanje i generiram e-kartu...</p>
         </div>
 
-        <!-- Ticket Card -->
-        <div class="ticket-card">
-          <!-- Ticket Title -->
-          <div class="ticket-title-row">
-            <div class="ticket-icon">P</div>
-            <h2 class="ticket-title">PARKIRNA E-KARTA</h2>
-          </div>
-
-          <!-- Status Badges -->
-          <div class="badge-row">
-            <span class="badge badge-green">✓ Plaćena</span>
-            <span class="badge badge-blue">✉ Poslano na mail</span>
-          </div>
-
-          <!-- QR + Code Section -->
-          <div class="qr-section">
-            <div class="qr-wrapper">
-              <img v-if="qrCodeUrl" :src="qrCodeUrl" alt="QR kod" class="qr-image" />
-              <div v-else class="qr-placeholder">QR</div>
-            </div>
-            <div class="code-info">
-              <p class="code-label">KOD KARTE (QR_KOD)</p>
-              <p class="code-value">{{ bookingCode }}</p>
-              <p class="code-sub">Br_rezervacije: #{{ brRezervacije }}</p>
-            </div>
-          </div>
-
-          <!-- Reservation Details -->
-          <div class="details-section">
-            <p class="section-title">REZERVACIJA</p>
-
-            <div class="detail-row">
-              <span class="detail-label">Parking</span>
-              <span class="detail-value">{{ ekarta.parking }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Broj_parkirnog_mjesta</span>
-              <span class="detail-value">{{ ekarta.spaceNumber }} • {{ ekarta.spaceType }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">ID_korisnika</span>
-              <span class="detail-value">#{{ ekarta.userId }} – {{ ekarta.userName }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Status_rezervacije</span>
-              <span class="detail-value">{{ ekarta.statusRezervacije }}</span>
-            </div>
-          </div>
-
-          <!-- E-Karta Time Details -->
-          <div class="details-section">
-            <p class="section-title">E-KARTA</p>
-
-            <div class="detail-row">
-              <span class="detail-label">Vrijeme_pocetka</span>
-              <span class="detail-value">{{ formatDateTime(ekarta.startDateTime) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Vrijeme_isteka</span>
-              <span class="detail-value">{{ formatDateTime(ekarta.endDateTime) }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-label">Poslana_na_mail</span>
-              <span class="detail-value">✓ Da (1)</span>
-            </div>
-          </div>
-
-          <!-- Vehicle + Time Footer -->
-          <div class="ticket-footer">
-            <div class="footer-vehicle">{{ ekarta.vehicle }}</div>
-            <div class="footer-time">
-              <p class="footer-label">VRIJEDI</p>
-              <p class="footer-value">{{ startTime }} – {{ endTime }}</p>
-              <p class="footer-date">{{ formatDate(ekarta.startDateTime) }}</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Action Button -->
-        <div class="action-section">
+        <div v-else-if="errorMessage" class="loading-wrap">
+          <p class="error-text">{{ errorMessage }}</p>
           <q-btn
-            @click="goToReservations"
-            label="Moje rezervacije"
+            @click="router.push('/reservation-confirm')"
+            label="Natrag"
             color="primary"
-            class="full-width action-btn"
+            class="q-mt-md"
           />
         </div>
+
+        <template v-else>
+          <div class="ekarta-header">
+            <p class="header-label">PLACANJE USPJE�NO</p>
+          </div>
+
+          <div class="ticket-card">
+            <div class="ticket-title-row">
+              <div class="ticket-icon">P</div>
+              <h2 class="ticket-title">PARKIRNA E-KARTA</h2>
+            </div>
+
+            <div class="badge-row">
+              <span class="badge badge-green">? Placena</span>
+              <span class="badge badge-blue">? Poslano na mail</span>
+            </div>
+
+            <div class="qr-section">
+              <div class="qr-wrapper">
+                <img v-if="qrCodeUrl" :src="qrCodeUrl" alt="QR kod" class="qr-image" />
+                <div v-else class="qr-placeholder">QR</div>
+              </div>
+              <div class="code-info">
+                <p class="code-label">KOD KARTE (QR_KOD)</p>
+                <p class="code-value">{{ bookingCode }}</p>
+                <p class="code-sub">Br_rezervacije: #{{ brRezervacije }}</p>
+              </div>
+            </div>
+
+            <div class="details-section">
+              <p class="section-title">REZERVACIJA</p>
+
+              <div class="detail-row">
+                <span class="detail-label">Parking</span>
+                <span class="detail-value">{{ ekarta.parking }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Broj_parkirnog_mjesta</span>
+                <span class="detail-value">{{ ekarta.spaceNumber }} � {{ ekarta.spaceType }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">ID_korisnika</span>
+                <span class="detail-value">#{{ ekarta.userId }} � {{ ekarta.userName }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Status_rezervacije</span>
+                <span class="detail-value">{{ ekarta.statusRezervacije }}</span>
+              </div>
+            </div>
+
+            <div class="details-section">
+              <p class="section-title">E-KARTA</p>
+
+              <div class="detail-row">
+                <span class="detail-label">Vrijeme_pocetka</span>
+                <span class="detail-value">{{ formatDateTime(ekarta.startDateTime) }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Vrijeme_isteka</span>
+                <span class="detail-value">{{ formatDateTime(ekarta.endDateTime) }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Poslana_na_mail</span>
+                <span class="detail-value">? Da</span>
+              </div>
+            </div>
+
+            <div class="ticket-footer">
+              <div class="footer-vehicle">{{ ekarta.vehicle }}</div>
+              <div class="footer-time">
+                <p class="footer-label">VRIJEDI</p>
+                <p class="footer-value">{{ startTime }} � {{ endTime }}</p>
+                <p class="footer-date">{{ formatDate(ekarta.startDateTime) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-section">
+            <q-btn
+              @click="goToReservations"
+              label="Moje rezervacije"
+              color="primary"
+              class="full-width action-btn"
+            />
+          </div>
+        </template>
       </q-page>
     </q-page-container>
   </q-layout>
@@ -101,9 +109,15 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
+const route = useRoute()
+
+const API_URL = import.meta.env.VITE_API_URL
+
+const loading = ref(true)
+const errorMessage = ref('')
 
 const bookingCode = ref('')
 const brRezervacije = ref('')
@@ -132,16 +146,70 @@ const endTime = computed(() => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 })
 
-onMounted(() => {
-  const saved = localStorage.getItem('ekartaData')
-  if (saved) {
-    const data = JSON.parse(saved)
-    bookingCode.value = data.bookingCode || ''
-    brRezervacije.value = data.brRezervacije || ''
-    qrCodeUrl.value = data.qrCode || ''
-    if (data.ekarta) {
-      ekarta.value = { ...ekarta.value, ...data.ekarta }
+function applyEkartaData(data) {
+  bookingCode.value = data.bookingCode || ''
+  brRezervacije.value = data.brRezervacije || ''
+  qrCodeUrl.value = data.qrCode || ''
+  if (data.ekarta) {
+    ekarta.value = { ...ekarta.value, ...data.ekarta }
+  }
+}
+
+onMounted(async () => {
+  try {
+    const saved = localStorage.getItem('ekartaData')
+    if (saved) {
+      applyEkartaData(JSON.parse(saved))
+      loading.value = false
+      return
     }
+
+    const orderId = route.query.orderId
+    const pendingReservationRaw = localStorage.getItem('pendingReservation')
+    const token = localStorage.getItem('auth_token')
+
+    if (!orderId) {
+      throw new Error('Nedostaje orderId u URL-u.')
+    }
+
+    if (!pendingReservationRaw) {
+      throw new Error('Nedostaju podaci rezervacije u localStorage.')
+    }
+
+    if (!token) {
+      throw new Error('Korisnik nije prijavljen.')
+    }
+
+    const pendingReservation = JSON.parse(pendingReservationRaw)
+
+    const response = await fetch(`${API_URL}/api/payments/confirm`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        bookingCode: orderId,
+        reservation: pendingReservation,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Potvrda placanja nije uspjela.')
+    }
+
+    localStorage.setItem('ekartaData', JSON.stringify(data))
+    localStorage.removeItem('pendingReservation')
+    localStorage.removeItem('reservationData')
+
+    applyEkartaData(data)
+  } catch (err) {
+    console.error('Payment success page error:', err)
+    errorMessage.value = err.message || 'Do�lo je do gre�ke pri potvrdi placanja.'
+  } finally {
+    loading.value = false
   }
 })
 
@@ -183,6 +251,31 @@ function goToReservations() {
   overflow-y: auto;
 }
 
+.loading-wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: white;
+  text-align: center;
+  padding: 24px;
+}
+
+.loading-text {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.error-text {
+  margin: 0;
+  color: #fca5a5;
+  font-size: 15px;
+  max-width: 400px;
+}
+
 .ekarta-header {
   text-align: center;
   padding: 16px;
@@ -197,7 +290,6 @@ function goToReservations() {
   text-transform: uppercase;
 }
 
-/* Ticket Card */
 .ticket-card {
   background: #16213e;
   border: 1px solid #334155;
@@ -235,7 +327,6 @@ function goToReservations() {
   letter-spacing: 1px;
 }
 
-/* Badges */
 .badge-row {
   display: flex;
   gap: 8px;
@@ -262,7 +353,6 @@ function goToReservations() {
   border: 1px solid #60a5fa;
 }
 
-/* QR Section */
 .qr-section {
   display: flex;
   gap: 16px;
@@ -324,7 +414,6 @@ function goToReservations() {
   color: #64748b;
 }
 
-/* Details */
 .details-section {
   margin-bottom: 12px;
 }
@@ -362,7 +451,6 @@ function goToReservations() {
   text-align: right;
 }
 
-/* Footer */
 .ticket-footer {
   display: flex;
   justify-content: space-between;
@@ -408,7 +496,6 @@ function goToReservations() {
   color: #64748b;
 }
 
-/* Action */
 .action-section {
   padding: 0 16px 24px;
 }
@@ -427,6 +514,7 @@ function goToReservations() {
     margin-left: auto;
     margin-right: auto;
   }
+
   .action-section {
     max-width: 450px;
     margin-left: auto;

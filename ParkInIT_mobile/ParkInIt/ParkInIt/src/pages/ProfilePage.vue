@@ -49,7 +49,13 @@
             </q-list>
 
             <div class="row q-gutter-sm q-mt-md justify-center">
-              <q-btn outline color="primary" icon="edit" :label="$t('profile.editProfile')" @click="startEdit" />
+              <q-btn
+                outline
+                color="primary"
+                icon="edit"
+                :label="$t('profile.editProfile')"
+                @click="startEdit"
+              />
               <q-btn
                 outline
                 color="orange"
@@ -85,7 +91,13 @@
               <q-input v-model="editForm.telefonski_broj" :label="$t('profile.phone')" outlined />
 
               <div class="row q-gutter-sm justify-center">
-                <q-btn type="submit" color="primary" icon="save" :label="$t('save')" :loading="saving" />
+                <q-btn
+                  type="submit"
+                  color="primary"
+                  icon="save"
+                  :label="$t('save')"
+                  :loading="saving"
+                />
                 <q-btn flat color="grey" icon="close" :label="$t('cancel')" @click="cancelEdit" />
               </div>
             </q-form>
@@ -190,7 +202,12 @@
 
             <div class="row q-gutter-sm justify-end">
               <q-btn flat :label="$t('cancel')" v-close-popup />
-              <q-btn type="submit" color="primary" :label="$t('profile.changeBtn')" :loading="changingPw" />
+              <q-btn
+                type="submit"
+                color="primary"
+                :label="$t('profile.changeBtn')"
+                :loading="changingPw"
+              />
             </div>
           </q-form>
         </q-card-section>

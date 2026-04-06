@@ -7,6 +7,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const QRCode = require("qrcode");
 const { Resend } = require("resend");
+const crypto = require("crypto");
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend =
@@ -21,13 +22,15 @@ if (!resend) {
 }
 
 const app = express();
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  }),
+);
 app.use(express.json());
 
 function authRequired(req, res, next) {
@@ -949,17 +952,148 @@ app.delete("/api/reports/:id", authRequired, adminOnly, async (req, res) => {
 });
 
 // ==================== PAYMENTS ====================
-// WSPay Payment Integration
-// SETUP: Set WSPAY_MODE, WSPAY_MERCHANT_ID, WSPAY_KEY in .env
-// TEST MODE: Uses mock payment page for development
-// PROD MODE: Redirects to WSPay secure server (set WSPAY_MODE=production)
 
-// POST /api/payments/initiate - Create Rezervacija, mark as paid, generate Ekarta with QR code
+function formatWsPayAmount(amountInMinorUnits) {
+  const numeric = Number(amountInMinorUnits);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    throw new Error("Invalid amount");
+  }
+  // frontend šalje amount u centima, npr. 350 -> "3,50"
+  return (numeric / 100).toFixed(2).replace(".", ",");
+}
+
+function formatWsPayAmountForSignature(totalAmount) {
+  // za signature: bez točke i bez zareza, npr. "3,50" -> "350"
+  return String(totalAmount).replace(/[.,]/g, "");
+}
+
+function buildWsPaySignature(shopID, secretKey, shoppingCartID, totalAmount) {
+  const amountForSignature = formatWsPayAmountForSignature(totalAmount);
+  const signatureString =
+    shopID + secretKey + shoppingCartID + secretKey + amountForSignature + secretKey;
+  return crypto.createHash("sha512").update(signatureString).digest("hex");
+}
+
 app.post("/api/payments/initiate", authRequired, async (req, res) => {
   try {
     const { bookingCode, amount, reservation } = req.body || {};
     const userId = Number(req.user.sub);
-    const DISABLED_SPACE_HOURLY_PRICE = 0.5;
+
+    if (!bookingCode || !amount || !reservation) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
+    }
+
+    const { spaceNumber, vehicle, startDateTime, endDateTime, address } =
+      reservation;
+
+    if (!spaceNumber || !vehicle || !startDateTime || !endDateTime) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing reservation details" });
+    }
+
+    const startTime = new Date(startDateTime);
+    const endTime = new Date(endDateTime);
+
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid reservation dates" });
+    }
+
+    if (endTime <= startTime) {
+      return res
+        .status(400)
+        .json({ success: false, message: "End time must be after start time" });
+    }
+
+    const [conflicts] = await pool.execute(
+      `SELECT COUNT(*) as count FROM Rezervacija
+       WHERE Broj_parkirnog_mjesta = ?
+         AND Status_rezervacije IN ('aktivna', 'placena')
+         AND Vrijeme_pocetka < ? AND Vrijeme_isteka > ?`,
+      [spaceNumber, endDateTime, startDateTime],
+    );
+
+    if (conflicts[0].count > 0) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "Parkirno mjesto je već rezervirano za odabrani vremenski period",
+      });
+    }
+
+    const shopID = process.env.WSPAY_SHOP_ID;
+    const secretKey = process.env.WSPAY_SECRET_KEY;
+    const frontendUrl = process.env.FRONTEND_URL || "https://parkinit.online";
+    const backendUrl = process.env.BACKEND_URL || "https://parkinit.online/api";
+    const mode = (process.env.WSPAY_MODE || "test").toLowerCase();
+
+    if (!shopID || !secretKey) {
+      return res.status(500).json({
+        success: false,
+        message: "WSPay credentials are missing",
+      });
+    }
+
+    const shoppingCartID = bookingCode;
+    const totalAmount = formatWsPayAmount(amount);
+
+    const paymentUrl =
+      mode === "test"
+        ? "https://formtest.wspay.biz/authorization.aspx"
+        : "https://secure.wspay.biz/authorization.aspx";
+
+    const returnURL = `${frontendUrl}/#/payment-success?orderId=${encodeURIComponent(shoppingCartID)}`;
+    const returnErrorURL = `${frontendUrl}/#/payment-error?orderId=${encodeURIComponent(shoppingCartID)}`;
+    const cancelURL = `${frontendUrl}/#/payment-cancel?orderId=${encodeURIComponent(shoppingCartID)}`;
+
+    const signature = buildWsPaySignature(
+      shopID,
+      secretKey,
+      shoppingCartID,
+      totalAmount,
+    );
+
+    const pendingReservation = {
+      userId,
+      bookingCode,
+      amount,
+      reservation,
+    };
+
+    const formData = {
+      ShopID: shopID,
+      ShoppingCartID: shoppingCartID,
+      Version: "2.0",
+      TotalAmount: totalAmount,
+      ReturnURL: returnURL,
+      ReturnErrorURL: returnErrorURL,
+      CancelURL: cancelURL,
+      Signature: signature,
+      Lang: "hr",
+      CustomerEmail: req.user?.email || "",
+      CustomData: Buffer.from(JSON.stringify(pendingReservation)).toString(
+        "base64",
+      ),
+    };
+
+    return res.json({
+      success: true,
+      paymentUrl,
+      formData,
+      orderId: shoppingCartID,
+    });
+  } catch (err) {
+    console.error("Payment initiation error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to initialize payment",
+    });
+  }
+});
 
     if (!bookingCode || !amount || !reservation) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -1211,6 +1345,174 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
   }
 });
 
+app.post("/api/payments/confirm", authRequired, async (req, res) => {
+  try {
+    const { bookingCode, reservation } = req.body || {};
+    const userId = Number(req.user.sub);
+    const DISABLED_SPACE_HOURLY_PRICE = 0.5;
+
+    if (!bookingCode || !reservation) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const { spaceNumber, vehicle, startDateTime, endDateTime } = reservation;
+    if (!spaceNumber || !vehicle || !startDateTime || !endDateTime) {
+      return res.status(400).json({ success: false, message: "Missing reservation details" });
+    }
+
+    const start = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      return res.status(400).json({ success: false, message: "Invalid reservation time range" });
+    }
+
+    // Ensure the vehicle exists in Vozilo (FK constraint)
+    await pool.execute(
+      `INSERT IGNORE INTO Vozilo (Registracija, ID_korisnika, Marka_vozila) VALUES (?, ?, 'Nepoznato')`,
+      [vehicle, userId],
+    );
+
+    // Check for overlapping reservations
+    const [conflicts] = await pool.execute(
+      `SELECT COUNT(*) as count FROM Rezervacija
+       WHERE Broj_parkirnog_mjesta = ?
+       AND Status_rezervacije IN ('aktivna', 'placena')
+       AND Vrijeme_pocetka < ? AND Vrijeme_isteka > ?`,
+      [spaceNumber, endDateTime, startDateTime],
+    );
+    if (conflicts[0].count > 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Parkirno mjesto je već rezervirano za odabrani vremenski period",
+      });
+    }
+
+    // Get space type and pricing info
+    const [spacePricingRows] = await pool.execute(
+      `SELECT pm.Vrsta_parkirnog_mjesta, p.Cijena_parkinga, p.Adresa_parkinga
+       FROM Parkirno_mjesto pm
+       LEFT JOIN Parking p ON p.Sifra_parkinga = pm.Sifra_parkinga
+       WHERE pm.Broj_parkirnog_mjesta = ?
+       LIMIT 1`,
+      [spaceNumber],
+    );
+    const spaceTypeRaw = spacePricingRows[0]?.Vrsta_parkirnog_mjesta || "standardno";
+    const parkingAddress = spacePricingRows[0]?.Adresa_parkinga || reservation.address || "";
+
+    // Create reservation as 'placena'
+    const [result] = await pool.execute(
+      `INSERT INTO Rezervacija (ID_korisnika, Broj_parkirnog_mjesta, Registracija, Vrijeme_pocetka, Vrijeme_isteka, Status_rezervacije, Admin_override, ID_admina)
+       VALUES (?, ?, ?, ?, ?, 'placena', 0, NULL)`,
+      [userId, spaceNumber, vehicle, startDateTime, endDateTime],
+    );
+
+    const brRezervacije = result.insertId;
+    console.log(`[CONFIRM] Reservation RES-${brRezervacije} created and paid`);
+
+    // Generate QR code
+    const qrData = JSON.stringify({
+      kod: bookingCode,
+      rezervacija: brRezervacije,
+      parking: spaceNumber,
+      od: startDateTime,
+      do: endDateTime,
+      registracija: vehicle,
+    });
+    const qrBuffer = await QRCode.toBuffer(qrData, { width: 200, margin: 1 });
+    const qrCodeDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
+
+    // Insert Ekarta record
+    await pool.execute(
+      `INSERT INTO Ekarta (Br_rezervacije, QR_kod, Vrijeme_pocetka, Vrijeme_isteka, Poslana_na_mail)
+       VALUES (?, ?, ?, ?, 0)`,
+      [brRezervacije, bookingCode, startDateTime, endDateTime],
+    );
+
+    // Get user info
+    const [userRows] = await pool.execute(
+      "SELECT Ime_korisnika, Prezime_korisnika, Email_adresa_korisnika FROM Korisnik WHERE ID_korisnika = ?",
+      [userId],
+    );
+    const user = userRows[0] || {};
+    const userEmail = user.Email_adresa_korisnika;
+    const userName = `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
+
+    // Send e-karta email
+    if (userEmail && resend) {
+      try {
+        const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
+        const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
+        await resend.emails.send({
+          from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
+          to: userEmail,
+          subject: `E-karta ${bookingCode} – ParkInIT`,
+          attachments: [
+            {
+              filename: "qrcode.png",
+              content: qrBuffer.toString("base64"),
+              content_type: "image/png",
+              content_id: "qrcode",
+            },
+          ],
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
+              <div style="background:#1a237e;color:white;padding:20px 24px;">
+                <h1 style="margin:0;font-size:22px;">ParkInIT – E-karta</h1>
+              </div>
+              <div style="padding:24px;">
+                <p style="margin-top:0;">Pozdrav, <strong>${userName}</strong>!</p>
+                <p>Vaša rezervacija je potvrđena. U nastavku su detalji vaše e-karte.</p>
+                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+                  <tr style="border-bottom:1px solid #eee;"><td style="padding:8px 0;color:#666;width:45%;">Kod rezervacije</td><td style="padding:8px 0;font-weight:bold;">${bookingCode}</td></tr>
+                  <tr style="border-bottom:1px solid #eee;"><td style="padding:8px 0;color:#666;">Lokacija</td><td style="padding:8px 0;">${parkingAddress}</td></tr>
+                  <tr style="border-bottom:1px solid #eee;"><td style="padding:8px 0;color:#666;">Parkirno mjesto</td><td style="padding:8px 0;">#${spaceNumber}</td></tr>
+                  <tr style="border-bottom:1px solid #eee;"><td style="padding:8px 0;color:#666;">Registracija</td><td style="padding:8px 0;color:#c0392b;font-weight:bold;">${vehicle}</td></tr>
+                  <tr style="border-bottom:1px solid #eee;"><td style="padding:8px 0;color:#666;">Početak</td><td style="padding:8px 0;">${formattedStart}</td></tr>
+                  <tr><td style="padding:8px 0;color:#666;">Završetak</td><td style="padding:8px 0;">${formattedEnd}</td></tr>
+                </table>
+                <div style="text-align:center;margin:24px 0;">
+                  <img src="cid:qrcode" alt="QR kod" width="180" style="display:block;margin:0 auto;" />
+                  <p style="font-size:12px;color:#999;margin-top:8px;">Pokažite QR kod na ulazu parkinga</p>
+                </div>
+              </div>
+              <div style="background:#f5f5f5;padding:12px 24px;font-size:12px;color:#999;text-align:center;">ParkInIT &copy; ${new Date().getFullYear()}</div>
+            </div>
+          `,
+        });
+        await pool.execute(
+          "UPDATE Ekarta SET Poslana_na_mail = 1 WHERE Br_rezervacije = ?",
+          [brRezervacije],
+        );
+        console.log(`[EMAIL] E-karta ${bookingCode} sent to ${userEmail}`);
+      } catch (emailErr) {
+        console.error("[EMAIL] Failed to send e-karta email:", emailErr.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      orderId: `RES-${brRezervacije}`,
+      bookingCode,
+      brRezervacije,
+      qrCode: qrCodeDataUrl,
+      ekarta: {
+        parking: parkingAddress,
+        spaceNumber,
+        spaceType: spaceTypeRaw === "invalidsko" ? "Invalidsko" : "Standardno",
+        startDateTime,
+        endDateTime,
+        vehicle,
+        userName,
+        userId,
+        statusRezervacije: "placena",
+      },
+    });
+  } catch (err) {
+    console.error("Payment confirm error:", err);
+    return res.status(500).json({ success: false, message: "Failed to confirm payment" });
+  }
+});
+
 // POST /api/payments/verify - Mark Rezervacija as 'placena' after payment callback
 app.post("/api/payments/verify", authRequired, async (req, res) => {
   try {
@@ -1222,50 +1524,23 @@ app.post("/api/payments/verify", authRequired, async (req, res) => {
       return res.status(400).json({ error: "Payment code is required" });
     }
 
-    if (!paymentCode.startsWith("RES-")) {
+    if (!paymentCode.startsWith("RES-") && !paymentCode.startsWith("PKIT-")) {
       return res
         .status(400)
         .json({ success: false, message: "Invalid payment code" });
     }
 
-    const brRezervacije = parseInt(paymentCode.replace("RES-", ""), 10);
-    if (isNaN(brRezervacije)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid payment code format" });
-    }
-
-    if (paymentMode === "production") {
-      console.log(`[PRODUCTION] Verifying payment for ${paymentCode}`);
-    } else {
-      console.log(`[TEST] Accepting mock payment for ${paymentCode}`);
-    }
-
-    const [rows] = await pool.execute(
-      "SELECT * FROM Rezervacija WHERE Br_rezervacije = ? AND ID_korisnika = ?",
-      [brRezervacije, userId],
+    console.log(
+      `[${paymentMode.toUpperCase()}] Verifying payment for ${paymentCode}`,
     );
-
-    if (rows.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Reservation not found" });
-    }
-
-    await pool.execute(
-      "UPDATE Rezervacija SET Status_rezervacije = 'placena' WHERE Br_rezervacije = ?",
-      [brRezervacije],
-    );
-
-    console.log(`[SUCCESS] Rezervacija ${brRezervacije} marked as placena`);
 
     return res.json({
       success: true,
       transactionId: transactionId || `TRX-${Date.now()}`,
       orderId: paymentCode,
-      Br_rezervacije: brRezervacije,
-      status: "approved",
-      message: "Payment verified and reservation confirmed",
+      status: status || "approved",
+      message: "Payment verified",
+      userId,
     });
   } catch (err) {
     console.error("Payment verification error:", err);
@@ -1273,29 +1548,9 @@ app.post("/api/payments/verify", authRequired, async (req, res) => {
   }
 });
 
-// POST /api/payments/notify - WSpay server-to-server notification (optional)
 app.post("/api/payments/notify", async (req, res) => {
   try {
-    const { OrderNumber, Status } = req.body || {};
-
-    if (!OrderNumber) {
-      return res.status(400).json({ error: "OrderNumber is required" });
-    }
-
-    if (OrderNumber.startsWith("RES-")) {
-      const brRezervacije = parseInt(OrderNumber.replace("RES-", ""), 10);
-      if (!isNaN(brRezervacije)) {
-        const newStatus = Status === "success" ? "placena" : "otkazana";
-        await pool.execute(
-          "UPDATE Rezervacija SET Status_rezervacije = ? WHERE Br_rezervacije = ?",
-          [newStatus, brRezervacije],
-        );
-        console.log(
-          `[NOTIFY] Rezervacija ${brRezervacije} status → ${newStatus}`,
-        );
-      }
-    }
-
+    console.log("[WSPAY NOTIFY]", req.body || {});
     return res.json({ success: true });
   } catch (err) {
     console.error("Payment notification error:", err);
