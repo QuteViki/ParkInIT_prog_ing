@@ -1062,7 +1062,7 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
         ? "https://formtest.wspay.biz/authorization.aspx"
         : "https://secure.wspay.biz/authorization.aspx";
 
-    const returnURL = `${frontendUrl}/#/payment-success?orderId=${encodeURIComponent(shoppingCartID)}&t=${encodeURIComponent(rawToken)}`;
+    const returnURL = `${frontendUrl}/payment-return?orderId=${encodeURIComponent(shoppingCartID)}&t=${encodeURIComponent(rawToken)}`;
     const returnErrorURL = `${frontendUrl}/#/payment-error?orderId=${encodeURIComponent(shoppingCartID)}`;
     const cancelURL = `${frontendUrl}/#/payment-cancel?orderId=${encodeURIComponent(shoppingCartID)}`;
 
@@ -2283,8 +2283,26 @@ const PORT = process.env.PORT || 3000;
 const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, "www");
 app.use(express.static(frontendDist));
 
-// Catch-all: return index.html for any non-API GET request (SPA hash routing)
-app.get(/^(?!\/api).*/, (req, res) => {
+// WSPay payment redirect handler — Android App Links intercepts this to open the app.
+// Browser fallback: serves a page that shows loading then redirects to the SPA hash URL.
+app.get("/payment-return", (req, res) => {
+  const { orderId, t } = req.query;
+  const params = new URLSearchParams();
+  if (orderId) params.set("orderId", orderId);
+  if (t) params.set("t", t);
+  const hashUrl = `/#/payment-success?${params.toString()}`;
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <meta http-equiv="refresh" content="0;url=${hashUrl}">
+    <title>ParkInIT – Redirecting...</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:#fff;}</style>
+  </head><body>
+    <p>Plaćanje uspješno, preusmjeravam...</p>
+    <script>window.location.replace("${hashUrl}");<\/script>
+  </body></html>`);
+});
+
+// Catch-all: return index.html for any non-API, non-well-known GET request (SPA hash routing)
+app.get(/^\/(?!api|payment-return|\.well-known).*/, (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
 

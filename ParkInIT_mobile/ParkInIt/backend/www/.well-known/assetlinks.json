@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.parkinit.app",
+      "sha256_cert_fingerprints": [
+        "8A:84:33:EC:44:84:E1:65:DF:44:0D:11:BC:19:0C:2E:9A:6B:F8:F4:A3:7E:DC:02:D0:25:8F:30:3D:B4:9E:E8"
+      ]
+    }
+  }
+]
