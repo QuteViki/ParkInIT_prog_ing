@@ -1,0 +1,1 @@
+import{b as a}from"./index-DPYLXNsx.js";import{a as e}from"./index-D5GkNzM3.js";const r=e.create({timeout:15e3}),n=a(({app:o})=>{o.config.globalProperties.$axios=e,o.config.globalProperties.$api=r});r.interceptors.request.use(o=>{const t=localStorage.getItem("auth_token");return t&&(o.headers.Authorization=`Bearer ${t}`),o});export{r as api,n as default};
