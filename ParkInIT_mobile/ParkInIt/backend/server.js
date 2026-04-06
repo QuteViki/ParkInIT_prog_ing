@@ -10,6 +10,9 @@ const { Resend } = require("resend");
 const crypto = require("crypto");
 const path = require("path");
 
+// Temporary server-side store for pending payment orders (survives until server restart)
+const pendingOrders = new Map();
+
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend =
   resendApiKey && !resendApiKey.includes("your_api_key")
@@ -1042,12 +1045,24 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
     const shoppingCartID = bookingCode;
     const totalAmount = formatWsPayAmount(amount);
 
+    // Store pending order server-side so the success page can retrieve it
+    // even when running in an external browser (no localStorage access)
+    const rawToken = (req.headers.authorization || "").replace("Bearer ", "");
+    pendingOrders.set(shoppingCartID, {
+      userId,
+      bookingCode,
+      amount,
+      reservation,
+      token: rawToken,
+      expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour TTL
+    });
+
     const paymentUrl =
       mode === "test"
         ? "https://formtest.wspay.biz/authorization.aspx"
         : "https://secure.wspay.biz/authorization.aspx";
 
-    const returnURL = `${frontendUrl}/#/payment-success?orderId=${encodeURIComponent(shoppingCartID)}`;
+    const returnURL = `${frontendUrl}/#/payment-success?orderId=${encodeURIComponent(shoppingCartID)}&t=${encodeURIComponent(rawToken)}`;
     const returnErrorURL = `${frontendUrl}/#/payment-error?orderId=${encodeURIComponent(shoppingCartID)}`;
     const cancelURL = `${frontendUrl}/#/payment-cancel?orderId=${encodeURIComponent(shoppingCartID)}`;
 
@@ -1348,26 +1363,42 @@ app.post("/api/payments/confirm-orphan-do-not-use", authRequired, async (req, re
   }
 });
 
-app.post("/api/payments/confirm", authRequired, async (req, res) => {
+app.post("/api/payments/confirm", async (req, res) => {
   try {
-    const { bookingCode, reservation } = req.body || {};
-    const userId = Number(req.user.sub);
+    const { orderId, token } = req.body || {};
     const DISABLED_SPACE_HOURLY_PRICE = 0.5;
 
-    if (!bookingCode || !reservation) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+    if (!orderId) {
+      return res.status(400).json({ success: false, message: "Missing orderId" });
+    }
+    if (!token) {
+      return res.status(401).json({ success: false, message: "Missing auth token" });
     }
 
+    // Verify JWT manually (needed because request comes from external browser)
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (e) {
+      return res.status(401).json({ success: false, message: "Invalid or expired token" });
+    }
+    const userId = Number(decoded.sub);
+
+    // Look up the pending order stored by the initiate endpoint
+    const pending = pendingOrders.get(orderId);
+    if (!pending) {
+      return res.status(404).json({ success: false, message: "Pending order not found or expired. Please try again." });
+    }
+    if (pending.userId !== userId) {
+      return res.status(403).json({ success: false, message: "Order does not belong to this user" });
+    }
+    if (Date.now() > pending.expiresAt) {
+      pendingOrders.delete(orderId);
+      return res.status(410).json({ success: false, message: "Payment session expired" });
+    }
+
+    const { bookingCode, reservation } = pending;
     const { spaceNumber, vehicle, startDateTime, endDateTime } = reservation;
-    if (!spaceNumber || !vehicle || !startDateTime || !endDateTime) {
-      return res.status(400).json({ success: false, message: "Missing reservation details" });
-    }
-
-    const start = new Date(startDateTime);
-    const end = new Date(endDateTime);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-      return res.status(400).json({ success: false, message: "Invalid reservation time range" });
-    }
 
     // Ensure the vehicle exists in Vozilo (FK constraint)
     await pool.execute(
@@ -1510,6 +1541,9 @@ app.post("/api/payments/confirm", authRequired, async (req, res) => {
         statusRezervacije: "placena",
       },
     });
+
+    // Clean up the pending order after successful processing
+    pendingOrders.delete(orderId);
   } catch (err) {
     console.error("Payment confirm error:", err);
     return res.status(500).json({ success: false, message: "Failed to confirm payment" });
@@ -2245,8 +2279,8 @@ app.post(
 
 const PORT = process.env.PORT || 3000;
 
-// Serve frontend static files (Quasar Capacitor build output)
-const frontendDist = path.join(__dirname, "../ParkInIt/src-capacitor/www");
+// Serve frontend static files
+const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, "www");
 app.use(express.static(frontendDist));
 
 // Catch-all: return index.html for any non-API GET request (SPA hash routing)

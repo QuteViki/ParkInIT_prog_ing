@@ -165,39 +165,27 @@ onMounted(async () => {
     }
 
     const orderId = route.query.orderId
-    const pendingReservationRaw = localStorage.getItem('pendingReservation')
-    const token = localStorage.getItem('auth_token')
+    // Token comes from URL (?t=...) when redirected from external browser (WSPay),
+    // or fall back to localStorage for in-app calls
+    const token = route.query.t || localStorage.getItem('auth_token')
 
     if (!orderId) {
       throw new Error('Nedostaje orderId u URL-u.')
     }
-
-    if (!pendingReservationRaw) {
-      throw new Error('Nedostaju podaci rezervacije u localStorage.')
-    }
-
     if (!token) {
       throw new Error('Korisnik nije prijavljen.')
     }
 
-    const pendingReservation = JSON.parse(pendingReservationRaw)
-
     const response = await fetch(`${API_URL}/api/payments/confirm`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        bookingCode: orderId,
-        reservation: pendingReservation,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, token }),
     })
 
     const data = await response.json()
 
     if (!response.ok || !data.success) {
-      throw new Error(data.message || 'Potvrda placanja nije uspjela.')
+      throw new Error(data.message || 'Potvrda plaćanja nije uspjela.')
     }
 
     localStorage.setItem('ekartaData', JSON.stringify(data))
@@ -207,7 +195,7 @@ onMounted(async () => {
     applyEkartaData(data)
   } catch (err) {
     console.error('Payment success page error:', err)
-    errorMessage.value = err.message || 'Do�lo je do gre�ke pri potvrdi placanja.'
+    errorMessage.value = err.message || 'Došlo je do greške pri potvrdi plaćanja.'
   } finally {
     loading.value = false
   }
