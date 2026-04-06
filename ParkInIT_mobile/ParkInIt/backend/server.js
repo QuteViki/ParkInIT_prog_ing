@@ -8,6 +8,7 @@ const jwt = require("jsonwebtoken");
 const QRCode = require("qrcode");
 const { Resend } = require("resend");
 const crypto = require("crypto");
+const path = require("path");
 
 const resendApiKey = process.env.RESEND_API_KEY;
 const resend =
@@ -2243,6 +2244,16 @@ app.post(
 );
 
 const PORT = process.env.PORT || 3000;
+
+// Serve frontend static files (Quasar Capacitor build output)
+const frontendDist = path.join(__dirname, "../ParkInIt/src-capacitor/www");
+app.use(express.static(frontendDist));
+
+// Catch-all: return index.html for any non-API GET request (SPA hash routing)
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.sendFile(path.join(frontendDist, "index.html"));
+});
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`API running on http://0.0.0.0:${PORT}`);
 });
