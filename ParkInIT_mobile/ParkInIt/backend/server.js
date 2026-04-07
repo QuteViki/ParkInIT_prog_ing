@@ -1521,7 +1521,11 @@ app.post("/api/payments/confirm", async (req, res) => {
           dateStyle: "short",
           timeStyle: "short",
         });
-        await resend.emails.send({
+        const emailTimeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Email send timeout")), 10000)
+        );
+        await Promise.race([
+          resend.emails.send({
           from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
           to: userEmail,
           subject: `E-karta ${bookingCode} – ParkInIT`,
@@ -1557,7 +1561,9 @@ app.post("/api/payments/confirm", async (req, res) => {
               <div style="background:#f5f5f5;padding:12px 24px;font-size:12px;color:#999;text-align:center;">ParkInIT &copy; ${new Date().getFullYear()}</div>
             </div>
           `,
-        });
+          }),
+          emailTimeout,
+        ]);
         await pool.execute(
           "UPDATE Ekarta SET Poslana_na_mail = 1 WHERE Br_rezervacije = ?",
           [brRezervacije],
@@ -1571,6 +1577,7 @@ app.post("/api/payments/confirm", async (req, res) => {
       }
     }
 
+    pendingOrders.delete(orderId);
     return res.json({
       success: true,
       orderId: `RES-${brRezervacije}`,
@@ -1589,9 +1596,6 @@ app.post("/api/payments/confirm", async (req, res) => {
         statusRezervacije: "placena",
       },
     });
-
-    // Clean up the pending order after successful processing
-    pendingOrders.delete(orderId);
   } catch (err) {
     console.error("Payment confirm error:", err);
     return res
