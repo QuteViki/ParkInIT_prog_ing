@@ -50,7 +50,12 @@ export default route(function () {
 
     // Ako korisnik NIJE ulogiran i ne ide na login ili register -> šalji ga na login
     const paymentRoutes = ['/payment-success', '/payment-error', '/payment-cancel']
-    if (!loggedIn && to.path !== '/login' && to.path !== '/register' && !paymentRoutes.includes(to.path)) {
+    if (
+      !loggedIn &&
+      to.path !== '/login' &&
+      to.path !== '/register' &&
+      !paymentRoutes.includes(to.path)
+    ) {
       return '/login'
     }
 

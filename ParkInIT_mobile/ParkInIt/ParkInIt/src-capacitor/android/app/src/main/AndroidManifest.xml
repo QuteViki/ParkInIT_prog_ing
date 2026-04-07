@@ -23,7 +23,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- App Links: intercept WSPay payment redirect URLs -->
+            <!-- App Links: intercept WSPay payment redirect URLs (HTTPS) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -31,6 +31,14 @@
                 <data android:scheme="https"
                       android:host="parkinit.online"
                       android:pathPrefix="/payment-return" />
+            </intent-filter>
+
+            <!-- Custom URL scheme: parkinit:// (no server verification needed) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="parkinit" />
             </intent-filter>
 
         </activity>

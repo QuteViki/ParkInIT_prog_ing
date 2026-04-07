@@ -974,7 +974,12 @@ function formatWsPayAmountForSignature(totalAmount) {
 function buildWsPaySignature(shopID, secretKey, shoppingCartID, totalAmount) {
   const amountForSignature = formatWsPayAmountForSignature(totalAmount);
   const signatureString =
-    shopID + secretKey + shoppingCartID + secretKey + amountForSignature + secretKey;
+    shopID +
+    secretKey +
+    shoppingCartID +
+    secretKey +
+    amountForSignature +
+    secretKey;
   return crypto.createHash("sha512").update(signatureString).digest("hex");
 }
 
@@ -1111,65 +1116,80 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
   }
 });
 
-app.post("/api/payments/confirm-orphan-do-not-use", authRequired, async (req, res) => {
-  try {
-    const { bookingCode, reservation } = req.body || {};
-    const userId = Number(req.user.sub);
-    const DISABLED_SPACE_HOURLY_PRICE = 0.5;
+app.post(
+  "/api/payments/confirm-orphan-do-not-use",
+  authRequired,
+  async (req, res) => {
+    try {
+      const { bookingCode, reservation } = req.body || {};
+      const userId = Number(req.user.sub);
+      const DISABLED_SPACE_HOURLY_PRICE = 0.5;
 
-    if (!bookingCode || !reservation) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
+      if (!bookingCode || !reservation) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Missing required fields" });
+      }
 
-    const { spaceNumber, vehicle, startDateTime, endDateTime } = reservation;
-    if (!spaceNumber || !vehicle || !startDateTime || !endDateTime) {
-      return res.status(400).json({ success: false, message: "Missing reservation details" });
-    }
+      const { spaceNumber, vehicle, startDateTime, endDateTime } = reservation;
+      if (!spaceNumber || !vehicle || !startDateTime || !endDateTime) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Missing reservation details" });
+      }
 
-    const start = new Date(startDateTime);
-    const end = new Date(endDateTime);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-      return res.status(400).json({ success: false, message: "Invalid reservation time range" });
-    }
+      const start = new Date(startDateTime);
+      const end = new Date(endDateTime);
+      if (
+        Number.isNaN(start.getTime()) ||
+        Number.isNaN(end.getTime()) ||
+        end <= start
+      ) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid reservation time range" });
+      }
 
-    const durationMs = end - start;
-    const billableHours = Math.ceil(durationMs / (1000 * 60 * 60));
+      const durationMs = end - start;
+      const billableHours = Math.ceil(durationMs / (1000 * 60 * 60));
 
-    const [spacePricingRows] = await pool.execute(
-      `SELECT pm.Vrsta_parkirnog_mjesta, p.Cijena_parkinga
+      const [spacePricingRows] = await pool.execute(
+        `SELECT pm.Vrsta_parkirnog_mjesta, p.Cijena_parkinga
        FROM Parkirno_mjesto pm
        LEFT JOIN Parking p ON p.Sifra_parkinga = pm.Sifra_parkinga
        WHERE pm.Broj_parkirnog_mjesta = ?
        LIMIT 1`,
-      [spaceNumber],
-    );
+        [spaceNumber],
+      );
 
-    if (!spacePricingRows.length) {
-      return res.status(404).json({ error: "Parkirno mjesto nije pronađeno" });
-    }
+      if (!spacePricingRows.length) {
+        return res
+          .status(404)
+          .json({ error: "Parkirno mjesto nije pronađeno" });
+      }
 
-    const spaceTypeRaw =
-      spacePricingRows[0].Vrsta_parkirnog_mjesta || "standardno";
-    const baseRate = Number(spacePricingRows[0].Cijena_parkinga) || 1.5;
-    const hourlyRate =
-      spaceTypeRaw === "invalidsko" ? DISABLED_SPACE_HOURLY_PRICE : baseRate;
-    const expectedAmountCents = Math.round(hourlyRate * billableHours * 100);
+      const spaceTypeRaw =
+        spacePricingRows[0].Vrsta_parkirnog_mjesta || "standardno";
+      const baseRate = Number(spacePricingRows[0].Cijena_parkinga) || 1.5;
+      const hourlyRate =
+        spaceTypeRaw === "invalidsko" ? DISABLED_SPACE_HOURLY_PRICE : baseRate;
+      const expectedAmountCents = Math.round(hourlyRate * billableHours * 100);
 
-    if (Number(amount) !== expectedAmountCents) {
-      return res.status(400).json({
-        error: `Neispravan iznos za odabrano mjesto. Očekivano: ${(expectedAmountCents / 100).toFixed(2)} EUR`,
-      });
-    }
+      if (Number(amount) !== expectedAmountCents) {
+        return res.status(400).json({
+          error: `Neispravan iznos za odabrano mjesto. Očekivano: ${(expectedAmountCents / 100).toFixed(2)} EUR`,
+        });
+      }
 
-    // Ensure the vehicle exists in Vozilo (FK constraint)
-    await pool.execute(
-      `INSERT IGNORE INTO Vozilo (Registracija, ID_korisnika, Marka_vozila) VALUES (?, ?, 'Nepoznato')`,
-      [vehicle, userId],
-    );
+      // Ensure the vehicle exists in Vozilo (FK constraint)
+      await pool.execute(
+        `INSERT IGNORE INTO Vozilo (Registracija, ID_korisnika, Marka_vozila) VALUES (?, ?, 'Nepoznato')`,
+        [vehicle, userId],
+      );
 
-    // Check if user already has a reservation for this plate at the same time (any location)
-    const [plateConflicts] = await pool.execute(
-      `SELECT r.Br_rezervacije, p.Adresa_parkinga
+      // Check if user already has a reservation for this plate at the same time (any location)
+      const [plateConflicts] = await pool.execute(
+        `SELECT r.Br_rezervacije, p.Adresa_parkinga
        FROM Rezervacija r
        LEFT JOIN Parkirno_mjesto pm ON pm.Broj_parkirnog_mjesta = r.Broj_parkirnog_mjesta
        LEFT JOIN Parking p ON p.Sifra_parkinga = pm.Sifra_parkinga
@@ -1178,109 +1198,109 @@ app.post("/api/payments/confirm-orphan-do-not-use", authRequired, async (req, re
          AND r.Status_rezervacije IN ('aktivna', 'placena')
          AND r.Vrijeme_pocetka < ? AND r.Vrijeme_isteka > ?
        LIMIT 1`,
-      [userId, vehicle, endDateTime, startDateTime],
-    );
-    if (plateConflicts.length > 0) {
-      const loc = plateConflicts[0].Adresa_parkinga || "drugoj lokaciji";
-      return res.status(409).json({
-        error: `Vozilo ${vehicle} već ima rezervaciju za taj period (${loc}).`,
-        existingLocation: loc,
-      });
-    }
+        [userId, vehicle, endDateTime, startDateTime],
+      );
+      if (plateConflicts.length > 0) {
+        const loc = plateConflicts[0].Adresa_parkinga || "drugoj lokaciji";
+        return res.status(409).json({
+          error: `Vozilo ${vehicle} već ima rezervaciju za taj period (${loc}).`,
+          existingLocation: loc,
+        });
+      }
 
-    // Check for overlapping reservations to prevent double-booking
-    const [conflicts] = await pool.execute(
-      `SELECT COUNT(*) as count FROM Rezervacija
+      // Check for overlapping reservations to prevent double-booking
+      const [conflicts] = await pool.execute(
+        `SELECT COUNT(*) as count FROM Rezervacija
        WHERE Broj_parkirnog_mjesta = ?
        AND Status_rezervacije IN ('aktivna', 'placena')
        AND Vrijeme_pocetka < ? AND Vrijeme_isteka > ?`,
-      [spaceNumber, endDateTime, startDateTime],
-    );
-    if (conflicts[0].count > 0) {
-      return res.status(409).json({
-        error:
-          "Parkirno mjesto je već rezervirano za odabrani vremenski period",
-      });
-    }
+        [spaceNumber, endDateTime, startDateTime],
+      );
+      if (conflicts[0].count > 0) {
+        return res.status(409).json({
+          error:
+            "Parkirno mjesto je već rezervirano za odabrani vremenski period",
+        });
+      }
 
-    // Create reservation directly as 'placena'
-    const [result] = await pool.execute(
-      `INSERT INTO Rezervacija (ID_korisnika, Broj_parkirnog_mjesta, Registracija, Vrijeme_pocetka, Vrijeme_isteka, Status_rezervacije, Admin_override, ID_admina)
+      // Create reservation directly as 'placena'
+      const [result] = await pool.execute(
+        `INSERT INTO Rezervacija (ID_korisnika, Broj_parkirnog_mjesta, Registracija, Vrijeme_pocetka, Vrijeme_isteka, Status_rezervacije, Admin_override, ID_admina)
        VALUES (?, ?, ?, ?, ?, 'placena', 0, NULL)`,
-      [userId, spaceNumber, vehicle, startDateTime, endDateTime],
-    );
+        [userId, spaceNumber, vehicle, startDateTime, endDateTime],
+      );
 
-    const brRezervacije = result.insertId;
-    const orderId = `RES-${brRezervacije}`;
-    console.log(`[PAYMENT] Reservation ${orderId} created and paid`);
+      const brRezervacije = result.insertId;
+      const orderId = `RES-${brRezervacije}`;
+      console.log(`[PAYMENT] Reservation ${orderId} created and paid`);
 
-    // Generate QR code as data URL (base64 PNG)
-    const qrData = JSON.stringify({
-      kod: bookingCode,
-      rezervacija: brRezervacije,
-      parking: spaceNumber,
-      od: startDateTime,
-      do: endDateTime,
-      registracija: vehicle,
-    });
-    const qrBuffer = await QRCode.toBuffer(qrData, { width: 200, margin: 1 });
-    const qrCodeDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
+      // Generate QR code as data URL (base64 PNG)
+      const qrData = JSON.stringify({
+        kod: bookingCode,
+        rezervacija: brRezervacije,
+        parking: spaceNumber,
+        od: startDateTime,
+        do: endDateTime,
+        registracija: vehicle,
+      });
+      const qrBuffer = await QRCode.toBuffer(qrData, { width: 200, margin: 1 });
+      const qrCodeDataUrl = `data:image/png;base64,${qrBuffer.toString("base64")}`;
 
-    // Insert Ekarta record
-    await pool.execute(
-      `INSERT INTO Ekarta (Br_rezervacije, QR_kod, Vrijeme_pocetka, Vrijeme_isteka, Poslana_na_mail)
+      // Insert Ekarta record
+      await pool.execute(
+        `INSERT INTO Ekarta (Br_rezervacije, QR_kod, Vrijeme_pocetka, Vrijeme_isteka, Poslana_na_mail)
        VALUES (?, ?, ?, ?, 0)`,
-      [brRezervacije, bookingCode, startDateTime, endDateTime],
-    );
+        [brRezervacije, bookingCode, startDateTime, endDateTime],
+      );
 
-    // Get user info for the ticket
-    const [userRows] = await pool.execute(
-      "SELECT Ime_korisnika, Prezime_korisnika, Email_adresa_korisnika FROM Korisnik WHERE ID_korisnika = ?",
-      [userId],
-    );
-    const user = userRows[0] || {};
+      // Get user info for the ticket
+      const [userRows] = await pool.execute(
+        "SELECT Ime_korisnika, Prezime_korisnika, Email_adresa_korisnika FROM Korisnik WHERE ID_korisnika = ?",
+        [userId],
+      );
+      const user = userRows[0] || {};
 
-    // Get parking address
-    const [parkingRows] = await pool.execute(
-      `SELECT p.Adresa_parkinga FROM Parking p
+      // Get parking address
+      const [parkingRows] = await pool.execute(
+        `SELECT p.Adresa_parkinga FROM Parking p
        JOIN Parkirno_mjesto pm ON pm.Sifra_parkinga = p.Sifra_parkinga
        WHERE pm.Broj_parkirnog_mjesta = ?`,
-      [spaceNumber],
-    );
-    const parkingAddress =
-      parkingRows[0]?.Adresa_parkinga || reservation.address || "";
+        [spaceNumber],
+      );
+      const parkingAddress =
+        parkingRows[0]?.Adresa_parkinga || reservation.address || "";
 
-    // Get space type
-    const spaceType = spaceTypeRaw;
+      // Get space type
+      const spaceType = spaceTypeRaw;
 
-    // Send e-karta to user's email
-    const userEmail = user.Email_adresa_korisnika;
-    const userName =
-      `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
-    const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
-    const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    });
+      // Send e-karta to user's email
+      const userEmail = user.Email_adresa_korisnika;
+      const userName =
+        `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
+      const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
+      const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", {
+        dateStyle: "short",
+        timeStyle: "short",
+      });
 
-    if (userEmail && resend) {
-      try {
-        await resend.emails.send({
-          from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
-          to: userEmail,
-          subject: `E-karta ${bookingCode} – ParkInIT`,
-          attachments: [
-            {
-              filename: "qrcode.png",
-              content: qrBuffer.toString("base64"),
-              content_type: "image/png",
-              content_id: "qrcode",
-            },
-          ],
-          html: `
+      if (userEmail && resend) {
+        try {
+          await resend.emails.send({
+            from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
+            to: userEmail,
+            subject: `E-karta ${bookingCode} – ParkInIT`,
+            attachments: [
+              {
+                filename: "qrcode.png",
+                content: qrBuffer.toString("base64"),
+                content_type: "image/png",
+                content_id: "qrcode",
+              },
+            ],
+            html: `
             <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
               <div style="background:#1a237e;color:white;padding:20px 24px;">
                 <h1 style="margin:0;font-size:22px;">ParkInIT – E-karta</h1>
@@ -1324,44 +1344,45 @@ app.post("/api/payments/confirm-orphan-do-not-use", authRequired, async (req, re
               </div>
             </div>
           `,
-        });
-        await pool.execute(
-          "UPDATE Ekarta SET Poslana_na_mail = 1 WHERE Br_rezervacije = ?",
-          [brRezervacije],
-        );
-        console.log(`[EMAIL] E-karta ${bookingCode} sent to ${userEmail}`);
-      } catch (emailErr) {
-        // Email failure should not block the payment success response
-        console.error(
-          "[EMAIL] Failed to send e-karta email:",
-          emailErr.message,
-        );
+          });
+          await pool.execute(
+            "UPDATE Ekarta SET Poslana_na_mail = 1 WHERE Br_rezervacije = ?",
+            [brRezervacije],
+          );
+          console.log(`[EMAIL] E-karta ${bookingCode} sent to ${userEmail}`);
+        } catch (emailErr) {
+          // Email failure should not block the payment success response
+          console.error(
+            "[EMAIL] Failed to send e-karta email:",
+            emailErr.message,
+          );
+        }
       }
-    }
 
-    return res.json({
-      success: true,
-      orderId,
-      bookingCode,
-      brRezervacije,
-      qrCode: qrCodeDataUrl,
-      ekarta: {
-        parking: parkingAddress,
-        spaceNumber,
-        spaceType: spaceType === "invalidsko" ? "Invalidsko" : "Standardno",
-        startDateTime,
-        endDateTime,
-        vehicle,
-        userName,
-        userId,
-        statusRezervacije: "placena",
-      },
-    });
-  } catch (err) {
-    console.error("Payment initiation error:", err);
-    return res.status(500).json({ error: "Failed to process payment" });
-  }
-});
+      return res.json({
+        success: true,
+        orderId,
+        bookingCode,
+        brRezervacije,
+        qrCode: qrCodeDataUrl,
+        ekarta: {
+          parking: parkingAddress,
+          spaceNumber,
+          spaceType: spaceType === "invalidsko" ? "Invalidsko" : "Standardno",
+          startDateTime,
+          endDateTime,
+          vehicle,
+          userName,
+          userId,
+          statusRezervacije: "placena",
+        },
+      });
+    } catch (err) {
+      console.error("Payment initiation error:", err);
+      return res.status(500).json({ error: "Failed to process payment" });
+    }
+  },
+);
 
 app.post("/api/payments/confirm", async (req, res) => {
   try {
@@ -1369,10 +1390,14 @@ app.post("/api/payments/confirm", async (req, res) => {
     const DISABLED_SPACE_HOURLY_PRICE = 0.5;
 
     if (!orderId) {
-      return res.status(400).json({ success: false, message: "Missing orderId" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing orderId" });
     }
     if (!token) {
-      return res.status(401).json({ success: false, message: "Missing auth token" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Missing auth token" });
     }
 
     // Verify JWT manually (needed because request comes from external browser)
@@ -1380,21 +1405,31 @@ app.post("/api/payments/confirm", async (req, res) => {
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (e) {
-      return res.status(401).json({ success: false, message: "Invalid or expired token" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid or expired token" });
     }
     const userId = Number(decoded.sub);
 
     // Look up the pending order stored by the initiate endpoint
     const pending = pendingOrders.get(orderId);
     if (!pending) {
-      return res.status(404).json({ success: false, message: "Pending order not found or expired. Please try again." });
+      return res.status(404).json({
+        success: false,
+        message: "Pending order not found or expired. Please try again.",
+      });
     }
     if (pending.userId !== userId) {
-      return res.status(403).json({ success: false, message: "Order does not belong to this user" });
+      return res.status(403).json({
+        success: false,
+        message: "Order does not belong to this user",
+      });
     }
     if (Date.now() > pending.expiresAt) {
       pendingOrders.delete(orderId);
-      return res.status(410).json({ success: false, message: "Payment session expired" });
+      return res
+        .status(410)
+        .json({ success: false, message: "Payment session expired" });
     }
 
     const { bookingCode, reservation } = pending;
@@ -1417,7 +1452,8 @@ app.post("/api/payments/confirm", async (req, res) => {
     if (conflicts[0].count > 0) {
       return res.status(409).json({
         success: false,
-        message: "Parkirno mjesto je već rezervirano za odabrani vremenski period",
+        message:
+          "Parkirno mjesto je već rezervirano za odabrani vremenski period",
       });
     }
 
@@ -1430,8 +1466,10 @@ app.post("/api/payments/confirm", async (req, res) => {
        LIMIT 1`,
       [spaceNumber],
     );
-    const spaceTypeRaw = spacePricingRows[0]?.Vrsta_parkirnog_mjesta || "standardno";
-    const parkingAddress = spacePricingRows[0]?.Adresa_parkinga || reservation.address || "";
+    const spaceTypeRaw =
+      spacePricingRows[0]?.Vrsta_parkirnog_mjesta || "standardno";
+    const parkingAddress =
+      spacePricingRows[0]?.Adresa_parkinga || reservation.address || "";
 
     // Create reservation as 'placena'
     const [result] = await pool.execute(
@@ -1469,13 +1507,20 @@ app.post("/api/payments/confirm", async (req, res) => {
     );
     const user = userRows[0] || {};
     const userEmail = user.Email_adresa_korisnika;
-    const userName = `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
+    const userName =
+      `${user.Ime_korisnika || ""} ${user.Prezime_korisnika || ""}`.trim();
 
     // Send e-karta email
     if (userEmail && resend) {
       try {
-        const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
-        const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", { dateStyle: "short", timeStyle: "short" });
+        const formattedStart = new Date(startDateTime).toLocaleString("hr-HR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        });
+        const formattedEnd = new Date(endDateTime).toLocaleString("hr-HR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        });
         await resend.emails.send({
           from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
           to: userEmail,
@@ -1519,7 +1564,10 @@ app.post("/api/payments/confirm", async (req, res) => {
         );
         console.log(`[EMAIL] E-karta ${bookingCode} sent to ${userEmail}`);
       } catch (emailErr) {
-        console.error("[EMAIL] Failed to send e-karta email:", emailErr.message);
+        console.error(
+          "[EMAIL] Failed to send e-karta email:",
+          emailErr.message,
+        );
       }
     }
 
@@ -1546,7 +1594,9 @@ app.post("/api/payments/confirm", async (req, res) => {
     pendingOrders.delete(orderId);
   } catch (err) {
     console.error("Payment confirm error:", err);
-    return res.status(500).json({ success: false, message: "Failed to confirm payment" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to confirm payment" });
   }
 });
 
@@ -2281,23 +2331,28 @@ const PORT = process.env.PORT || 3000;
 
 // Serve frontend static files
 const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, "www");
-app.use(express.static(frontendDist));
+app.use(express.static(frontendDist, { dotfiles: "allow" }));
 
-// WSPay payment redirect handler — Android App Links intercepts this to open the app.
-// Browser fallback: serves a page that shows loading then redirects to the SPA hash URL.
+// WSPay payment redirect handler.
+// Tries to open the app via parkinit:// custom scheme; falls back to web SPA after 2s.
 app.get("/payment-return", (req, res) => {
   const { orderId, t } = req.query;
   const params = new URLSearchParams();
   if (orderId) params.set("orderId", orderId);
   if (t) params.set("t", t);
-  const hashUrl = `/#/payment-success?${params.toString()}`;
+  const paramStr = params.toString();
+  const appUrl = `parkinit://payment-return?${paramStr}`;
+  const webUrl = `/#/payment-success?${paramStr}`;
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
-    <meta http-equiv="refresh" content="0;url=${hashUrl}">
-    <title>ParkInIT – Redirecting...</title>
-    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:#fff;}</style>
+    <title>ParkInIT</title>
+    <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1a1a2e;color:#fff;flex-direction:column;gap:16px;text-align:center;padding:24px;}</style>
   </head><body>
-    <p>Plaćanje uspješno, preusmjeravam...</p>
-    <script>window.location.replace("${hashUrl}");<\/script>
+    <p style="font-size:18px;">Plaćanje uspješno!</p>
+    <p style="opacity:.7;">Vraćamo vas u aplikaciju...</p>
+    <script>
+      window.location.href = '${appUrl}';
+      setTimeout(function() { window.location.replace('${webUrl}'); }, 2000);
+    <\/script>
   </body></html>`);
 });
 

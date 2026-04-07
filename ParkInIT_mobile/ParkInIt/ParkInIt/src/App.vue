@@ -23,11 +23,13 @@ onMounted(() => {
     showSplash.value = false
   }, 800)
 
-  // Handle deep links (App Links) — fires when Android intercepts payment redirect URLs
+  // Handle deep links — fires for both parkinit:// custom scheme and HTTPS App Links
   CapApp.addListener('appUrlOpen', (event) => {
     try {
       const url = new URL(event.url)
-      if (url.pathname === '/payment-return') {
+      // parkinit://payment-return?orderId=...&t=...
+      // https://parkinit.online/payment-return?orderId=...&t=...
+      if (url.pathname === '/payment-return' || url.host === 'payment-return') {
         const orderId = url.searchParams.get('orderId')
         const t = url.searchParams.get('t')
         const query = {}
