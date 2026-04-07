@@ -11,6 +11,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { App as CapApp } from '@capacitor/app'
+import { Browser } from '@capacitor/browser'
 
 const showSplash = ref(true)
 const router = useRouter()
@@ -30,6 +31,8 @@ onMounted(() => {
       // parkinit://payment-return?orderId=...&t=...
       // https://parkinit.online/payment-return?orderId=...&t=...
       if (url.pathname === '/payment-return' || url.host === 'payment-return') {
+        // Close the @capacitor/browser overlay (WSPay) if still open
+        Browser.close().catch(() => {})
         const orderId = url.searchParams.get('orderId')
         const t = url.searchParams.get('t')
         const query = {}

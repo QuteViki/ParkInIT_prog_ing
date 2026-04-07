@@ -154,6 +154,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useI18n } from 'vue-i18n'
+import { Browser } from '@capacitor/browser'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -393,20 +394,12 @@ async function handlePayment() {
     localStorage.removeItem('ekartaData')
     localStorage.removeItem('reservationData')
 
-    // Submit form to WSPay payment page
-    const form = document.createElement('form')
-    form.method = 'POST'
-    form.action = paymentData.paymentUrl
-    form.style.display = 'none'
-    Object.entries(paymentData.formData).forEach(([key, value]) => {
-      const input = document.createElement('input')
-      input.type = 'hidden'
-      input.name = key
-      input.value = value
-      form.appendChild(input)
+    // Open WSPay in an in-app browser overlay so the Capacitor WebView (and its
+    // appUrlOpen listener in App.vue) stays alive during payment.
+    await Browser.open({
+      url: `${API_URL}/payment-form/${encodeURIComponent(paymentData.orderId)}`,
+      presentationStyle: 'fullscreen',
     })
-    document.body.appendChild(form)
-    form.submit()
   } catch (error) {
     console.error('Payment initiation error:', error)
     $q.notify({

@@ -1060,6 +1060,7 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
       reservation,
       token: rawToken,
       expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour TTL
+      formDataStored: null, // filled below after formData is built
     });
 
     const paymentUrl =
@@ -1100,6 +1101,10 @@ app.post("/api/payments/initiate", authRequired, async (req, res) => {
         "base64",
       ),
     };
+
+    // Store formData so /payment-form/:orderId can render the auto-submit page
+    const stored = pendingOrders.get(shoppingCartID);
+    if (stored) stored.formDataStored = { paymentUrl, formData };
 
     return res.json({
       success: true,
@@ -1522,22 +1527,22 @@ app.post("/api/payments/confirm", async (req, res) => {
           timeStyle: "short",
         });
         const emailTimeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Email send timeout")), 10000)
+          setTimeout(() => reject(new Error("Email send timeout")), 10000),
         );
         await Promise.race([
           resend.emails.send({
-          from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
-          to: userEmail,
-          subject: `E-karta ${bookingCode} – ParkInIT`,
-          attachments: [
-            {
-              filename: "qrcode.png",
-              content: qrBuffer.toString("base64"),
-              content_type: "image/png",
-              content_id: "qrcode",
-            },
-          ],
-          html: `
+            from: process.env.RESEND_FROM || "ParkInIT <noreply@parkinit.hr>",
+            to: userEmail,
+            subject: `E-karta ${bookingCode} – ParkInIT`,
+            attachments: [
+              {
+                filename: "qrcode.png",
+                content: qrBuffer.toString("base64"),
+                content_type: "image/png",
+                content_id: "qrcode",
+              },
+            ],
+            html: `
             <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;border:1px solid #ddd;border-radius:8px;overflow:hidden;">
               <div style="background:#1a237e;color:white;padding:20px 24px;">
                 <h1 style="margin:0;font-size:22px;">ParkInIT – E-karta</h1>
@@ -2336,6 +2341,33 @@ const PORT = process.env.PORT || 3000;
 // Serve frontend static files
 const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, "www");
 app.use(express.static(frontendDist, { dotfiles: "allow" }));
+
+// One-time auto-submit page for WSPay — opened via @capacitor/browser so the
+// Capacitor WebView stays alive (keeps appUrlOpen listener active).
+app.get("/payment-form/:orderId", (req, res) => {
+  const { orderId } = req.params;
+  const pending = pendingOrders.get(orderId);
+  if (!pending || !pending.formDataStored || Date.now() > pending.expiresAt) {
+    return res.status(404).send("Payment session not found or expired.");
+  }
+  const { paymentUrl, formData } = pending.formDataStored;
+  const escape = (s) =>
+    String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  const inputs = Object.entries(formData)
+    .map(([k, v]) => `<input type="hidden" name="${escape(k)}" value="${escape(v)}">`)
+    .join("");
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>ParkInIT – Plaćanje</title>
+  <style>body{font-family:Arial,sans-serif;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;gap:12px;}</style>
+  </head><body>
+  <p>Preusmjeravam na sustav plaćanja…</p>
+  <form id="f" method="POST" action="${escape(paymentUrl)}">${inputs}</form>
+  <script>document.getElementById('f').submit();<\/script>
+  </body></html>`);
+});
 
 // WSPay payment redirect handler.
 // Tries to open the app via parkinit:// custom scheme; falls back to web SPA after 2s.
