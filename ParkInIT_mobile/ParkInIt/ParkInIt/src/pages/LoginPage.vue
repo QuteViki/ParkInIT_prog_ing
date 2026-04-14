@@ -12,25 +12,29 @@
           <q-form @submit="handleLogin" class="login-form">
             <!-- Email Input -->
             <q-input
-              v-model="email"
-              type="email"
-              :placeholder="$t('login.email')"
-              outlined
-              :rules="[(val) => !!val || $t('login.emailRequired')]"
-              autocomplete="email"
-              class="form-input"
-            />
+                v-model="email"
+                type="email"
+                name="email"
+                data-testid="email-input"
+                :placeholder="$t('login.email')"
+                outlined
+                :rules="[(val) => !!val || $t('login.emailRequired')]"
+                autocomplete="email"
+                class="form-input"
+              />
 
             <!-- Password Input -->
-            <q-input
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              :placeholder="$t('login.password')"
-              outlined
-              :rules="[(val) => !!val || $t('login.passwordRequired')]"
-              autocomplete="current-password"
-              class="form-input"
-            >
+              <q-input
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                name="password"
+                data-testid="password-input"
+                :placeholder="$t('login.password')"
+                outlined
+                :rules="[(val) => !!val || $t('login.passwordRequired')]"
+                autocomplete="current-password"
+                class="form-input"
+              >
               <template v-slot:append>
                 <q-icon
                   :name="showPassword ? 'visibility' : 'visibility_off'"
@@ -46,13 +50,18 @@
             </div>
 
             <!-- Error message -->
-            <div v-if="errorMessage" class="text-negative text-center q-my-md">
+            <div
+              v-if="errorMessage"
+              class="text-negative text-center q-my-md error-message"
+              data-testid="login-error"
+            >
               {{ errorMessage }}
             </div>
 
             <!-- Login Button -->
             <q-btn
               type="submit"
+              data-testid="login-submit"
               :label="$t('login.submit')"
               color="primary"
               class="full-width login-btn"
