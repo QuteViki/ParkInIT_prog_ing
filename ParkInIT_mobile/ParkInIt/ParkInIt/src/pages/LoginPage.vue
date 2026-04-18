@@ -133,7 +133,7 @@ async function handleLogin() {
     $q.notify({
       type: 'positive',
       message: t('login.success'),
-      position: 'top',
+      position: 'bottom',
     })
 
     // Redirect to home
