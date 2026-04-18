@@ -12,6 +12,7 @@ const routes = [
       { path: 'reservation', component: () => import('pages/ReservationPage.vue') },
       { path: 'profile', component: () => import('pages/ProfilePage.vue') },
       { path: 'settings', component: () => import('pages/SettingsPage.vue') },
+      { path: 'help', component: () => import('pages/HelpPage.vue') },
       {
         path: 'admin',
         component: () => import('pages/AdminPage.vue'),

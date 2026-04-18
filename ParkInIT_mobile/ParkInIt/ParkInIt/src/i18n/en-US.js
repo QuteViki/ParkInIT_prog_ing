@@ -21,6 +21,7 @@ export default {
     reservation: 'Parking Reservation',
     profile: 'Profile',
     settings: 'Settings',
+    help: 'Help',
     admin: 'Admin',
     adminPanel: 'Admin Panel',
     reports: 'Reported Images',
@@ -43,6 +44,13 @@ export default {
     themeChangedDark: 'Theme changed: Dark',
     fontSizeNormal: 'Font size: normal',
     fontSizeLarge: 'Font size: larger',
+  },
+
+  // Help
+  help: {
+    title: 'Help',
+    description: 'Here you can find the user manual for the ParkInIT application.',
+    download: 'Download manual',
   },
 
   // Reservations

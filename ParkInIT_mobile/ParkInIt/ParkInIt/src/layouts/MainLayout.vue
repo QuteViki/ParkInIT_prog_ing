@@ -39,6 +39,11 @@
           <q-item-section>{{ $t('menu.settings') }}</q-item-section>
         </q-item>
 
+        <q-item clickable v-ripple to="/help" @click="leftDrawerOpen = false">
+          <q-item-section avatar><q-icon name="help" /></q-item-section>
+          <q-item-section>{{ $t('menu.help') }}</q-item-section>
+        </q-item>
+
         <template v-if="isAdmin">
           <q-separator class="q-my-sm" />
           <q-item-label header>{{ $t('menu.admin') }}</q-item-label>

@@ -21,6 +21,7 @@ export default {
     reservation: 'Rezervacije',
     profile: 'Profil',
     settings: 'Postavke',
+    help: 'Pomoć',
     admin: 'Administrator',
     adminPanel: 'Admin panel',
     reports: 'Prijavljene slike',
@@ -43,6 +44,13 @@ export default {
     themeChangedDark: 'Tema promijenjena: Tamna',
     fontSizeNormal: 'Veličina fonta: normalna',
     fontSizeLarge: 'Veličina fonta: veća',
+  },
+
+  // Help
+  help: {
+    title: 'Pomoć',
+    description: 'Ovdje možete pronaći korisnički priručnik za ParkInIT aplikaciju.',
+    download: 'Preuzmi priručnik',
   },
 
   // Reservations

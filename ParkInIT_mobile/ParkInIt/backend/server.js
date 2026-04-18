@@ -2342,6 +2342,9 @@ const PORT = process.env.PORT || 3000;
 const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, "www");
 app.use(express.static(frontendDist, { dotfiles: "allow" }));
 
+// Serve uploads static files
+app.use('/uploads', express.static('uploads'));
+
 // One-time auto-submit page for WSPay — opened via @capacitor/browser so the
 // Capacitor WebView stays alive (keeps appUrlOpen listener active).
 app.get("/payment-form/:orderId", (req, res) => {
@@ -2358,7 +2361,10 @@ app.get("/payment-form/:orderId", (req, res) => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
   const inputs = Object.entries(formData)
-    .map(([k, v]) => `<input type="hidden" name="${escape(k)}" value="${escape(v)}">`)
+    .map(
+      ([k, v]) =>
+        `<input type="hidden" name="${escape(k)}" value="${escape(v)}">`,
+    )
     .join("");
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>ParkInIT – Plaćanje</title>
   <style>body{font-family:Arial,sans-serif;background:#1a1a2e;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;gap:12px;}</style>

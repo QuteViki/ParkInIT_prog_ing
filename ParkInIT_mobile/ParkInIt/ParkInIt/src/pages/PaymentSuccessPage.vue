@@ -19,7 +19,7 @@
 
         <template v-else>
           <div class="ekarta-header">
-            <p class="header-label">PLACANJE USPJE�NO</p>
+            <p class="header-label">PLACANJE USPJEŠNO</p>
           </div>
 
           <div class="ticket-card">
@@ -29,7 +29,7 @@
             </div>
 
             <div class="badge-row">
-              <span class="badge badge-green">? Placena</span>
+              <span class="badge badge-green">? Plaćena</span>
               <span class="badge badge-blue">? Poslano na mail</span>
             </div>
 
