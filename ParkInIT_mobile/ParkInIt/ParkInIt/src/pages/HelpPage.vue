@@ -14,11 +14,7 @@
               {{ $t('help.description') }}
             </div>
 
-            <q-banner v-if="!isManualAvailable" dense class="bg-orange-1 text-dark q-mb-md">
-              {{ $t('help.unavailable') }}
-            </q-banner>
-
-            <div v-if="isManualAvailable" class="row q-col-gutter-sm q-mt-sm">
+            <div class="row q-col-gutter-sm q-mt-sm">
               <div class="col-12">
                 <q-btn
                   color="primary"
@@ -47,51 +43,23 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
 import { Browser } from '@capacitor/browser'
-import { Capacitor } from '@capacitor/core'
 
 const $q = useQuasar()
 const { t } = useI18n()
 
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const manualFileName = 'ParkInIT_manual_merged.docx'
-const isManualAvailable = ref(true)
-
-const documentUrl = computed(() => `${apiUrl}/uploads/${manualFileName}`)
-
-onMounted(async () => {
-  try {
-    const response = await fetch(documentUrl.value, { method: 'HEAD' })
-    isManualAvailable.value = response.ok
-  } catch {
-    isManualAvailable.value = false
-  }
-})
+const documentUrl = `${apiUrl}/uploads/${manualFileName}`
 
 async function openManual() {
-  if (Capacitor.isNativePlatform()) {
-    await Browser.open({ url: documentUrl.value })
-  } else {
-    window.open(documentUrl.value, '_blank', 'noopener')
-  }
+  await Browser.open({ url: documentUrl })
 }
 
 async function downloadManual() {
-  if (Capacitor.isNativePlatform()) {
-    await Browser.open({ url: documentUrl.value })
-  } else {
-    const link = document.createElement('a')
-    link.href = documentUrl.value
-    link.target = '_blank'
-    link.rel = 'noopener'
-    link.download = manualFileName
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+  await Browser.open({ url: documentUrl })
   $q.notify({
     color: 'primary',
     message: t('help.downloadStarted'),
