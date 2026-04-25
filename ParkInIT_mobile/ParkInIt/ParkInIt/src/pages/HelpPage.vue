@@ -51,7 +51,7 @@ const $q = useQuasar()
 const { t } = useI18n()
 
 const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-const manualFileName = 'ParkInIT_manual_merged.docx'
+const manualFileName = 'ParkInIT_manual.docx'
 const documentUrl = `${apiUrl}/uploads/${manualFileName}`
 
 async function openManual() {
