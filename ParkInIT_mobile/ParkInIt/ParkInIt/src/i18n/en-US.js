@@ -50,7 +50,11 @@ export default {
   help: {
     title: 'Help',
     description: 'Here you can find the user manual for the ParkInIT application.',
+    open: 'Open manual',
     download: 'Download manual',
+    downloadStarted: 'Opening the manual in your browser.',
+    unavailable:
+      'The manual is currently unavailable on the server. You can still try to open or download it directly.',
   },
 
   // Reservations

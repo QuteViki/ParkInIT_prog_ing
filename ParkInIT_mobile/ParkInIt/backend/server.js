@@ -84,7 +84,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     const normEmail = String(email).trim().toLowerCase();
 
-    // Query Korisnik table (merged with Administrator)
+    // Query Korisnik table 
     const [rows] = await pool.execute(
       "SELECT ID_korisnika, Email_adresa_korisnika, Password_hash, Role, Ime_korisnika, Prezime_korisnika FROM Korisnik WHERE Email_adresa_korisnika = ? LIMIT 1",
       [normEmail],
@@ -2343,7 +2343,8 @@ const frontendDist = process.env.FRONTEND_DIST || path.join(__dirname, "www");
 app.use(express.static(frontendDist, { dotfiles: "allow" }));
 
 // Serve uploads static files
-app.use('/uploads', express.static('uploads'));
+const uploadsDir = path.join(__dirname, "uploads");
+app.use("/uploads", express.static(uploadsDir));
 
 // One-time auto-submit page for WSPay — opened via @capacitor/browser so the
 // Capacitor WebView stays alive (keeps appUrlOpen listener active).

@@ -14,29 +14,31 @@
               {{ $t('help.description') }}
             </div>
 
-            <!-- Embedded document viewer -->
-            <div class="document-viewer">
-              <iframe
-                :src="documentUrl"
-                width="100%"
-                height="600px"
-                frameborder="0"
-                allowfullscreen
-              ></iframe>
-            </div>
+            <q-banner v-if="!isManualAvailable" dense class="bg-orange-1 text-dark q-mb-md">
+              {{ $t('help.unavailable') }}
+            </q-banner>
 
-            <!-- Fallback download link -->
-            <q-btn
-              flat
-              color="primary"
-              :href="documentUrl"
-              target="_blank"
-              download="ParkInIT_manual_merged.docx"
-              class="q-mt-md"
-            >
-              <q-icon name="download" class="q-mr-sm" />
-              {{ $t('help.download') }}
-            </q-btn>
+            <div v-if="isManualAvailable" class="row q-col-gutter-sm q-mt-sm">
+              <div class="col-12">
+                <q-btn
+                  color="primary"
+                  icon="open_in_new"
+                  :label="$t('help.open')"
+                  class="full-width"
+                  @click="openManual"
+                />
+              </div>
+              <div class="col-12">
+                <q-btn
+                  outline
+                  color="primary"
+                  icon="download"
+                  :label="$t('help.download')"
+                  class="full-width"
+                  @click="downloadManual"
+                />
+              </div>
+            </div>
           </q-card-section>
         </q-card>
       </div>
@@ -45,16 +47,54 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useQuasar } from 'quasar'
+import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
 
-// Assuming the backend is running on the same host, adjust if needed
-const documentUrl = computed(() => `${window.location.origin}/uploads/ParkInIT_manual_merged.docx`)
-</script>
+const $q = useQuasar()
+const { t } = useI18n()
 
-<style scoped>
-.document-viewer {
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  overflow: hidden;
+const apiUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const manualFileName = 'ParkInIT_manual_merged.docx'
+const isManualAvailable = ref(true)
+
+const documentUrl = computed(() => `${apiUrl}/uploads/${manualFileName}`)
+
+onMounted(async () => {
+  try {
+    const response = await fetch(documentUrl.value, { method: 'HEAD' })
+    isManualAvailable.value = response.ok
+  } catch {
+    isManualAvailable.value = false
+  }
+})
+
+async function openManual() {
+  if (Capacitor.isNativePlatform()) {
+    await Browser.open({ url: documentUrl.value })
+  } else {
+    window.open(documentUrl.value, '_blank', 'noopener')
+  }
 }
-</style>
+
+async function downloadManual() {
+  if (Capacitor.isNativePlatform()) {
+    await Browser.open({ url: documentUrl.value })
+  } else {
+    const link = document.createElement('a')
+    link.href = documentUrl.value
+    link.target = '_blank'
+    link.rel = 'noopener'
+    link.download = manualFileName
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+  $q.notify({
+    color: 'primary',
+    message: t('help.downloadStarted'),
+  })
+}
+</script>

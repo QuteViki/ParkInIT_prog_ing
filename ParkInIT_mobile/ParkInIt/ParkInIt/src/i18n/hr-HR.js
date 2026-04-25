@@ -50,7 +50,11 @@ export default {
   help: {
     title: 'Pomoć',
     description: 'Ovdje možete pronaći korisnički priručnik za ParkInIT aplikaciju.',
+    open: 'Otvori priručnik',
     download: 'Preuzmi priručnik',
+    downloadStarted: 'Otvaram priručnik u pregledniku.',
+    unavailable:
+      'Priručnik trenutno nije dostupan na serveru. Možete pokušati otvoriti ili preuzeti direktno.',
   },
 
   // Reservations
