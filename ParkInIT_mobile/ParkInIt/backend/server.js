@@ -2400,7 +2400,7 @@ app.get("/payment-return", (req, res) => {
 });
 
 // Catch-all: return index.html for any non-API, non-well-known GET request (SPA hash routing)
-app.get(/^\/(?!api|payment-return|\.well-known).*/, (req, res) => {
+app.get(/^\/(?!api|payment-return|\.well-known|uploads).*/, (req, res) => {
   res.sendFile(path.join(frontendDist, "index.html"));
 });
 
