@@ -1,0 +1,85 @@
+PARKINIT – USER TO BACKEND FLOWS (CODE OUTLINE)
+
+1. LOGIN
+   - LoginPage.vue: Handles login form, calls backend with email/password.
+   - POST /api/auth/login: Authenticates user, returns JWT and user info.
+   - Token saved to localStorage for future requests.
+
+2. REGISTRATION
+   - RegisterPage.vue: Collects user info, submits to backend.
+   - POST /api/auth/register: Validates, hashes password, creates user.
+
+3. PROFILE
+   - ProfilePage.vue: Shows and edits user info.
+   - GET /api/user/profile: Fetches user data.
+   - PUT /api/user/profile: Updates user info.
+   - POST /api/user/change-password: Changes password after verifying old one.
+
+4. VEHICLES
+   - ProfilePage.vue: Lists, adds, deletes vehicles.
+   - GET /api/user/vehicles: Lists user’s vehicles.
+   - POST /api/user/vehicles: Adds new vehicle.
+   - DELETE /api/user/vehicles/:registration: Deletes vehicle.
+
+5. PARKING BROWSING
+   - ParkingSpacePageNew.vue: Shows parking lots and spaces.
+   - GET /api/parking: Lists all parking lots.
+   - GET /api/parking/:id/spaces: Lists spaces for a lot.
+
+6. RESERVATIONS
+   - ReservationPage.vue: User creates, views, cancels reservations.
+   - POST /api/reservations: Creates reservation.
+   - GET /api/reservations: Lists user’s reservations.
+   - PUT /api/reservations/:id: Updates reservation.
+   - PATCH /api/reservations/:id/cancel: Cancels reservation.
+   - DELETE /api/reservations/:id: Deletes reservation.
+   - GET /api/reservations/:id/ekarta: Gets e-ticket (QR code).
+
+7. PAYMENT
+   - ReservationConfirmPage.vue: Initiates payment.
+   - POST /api/payments/initiate: Prepares payment, stores order.
+   - POST /api/payments/confirm: Confirms payment, creates reservation, sends e-ticket.
+   - PaymentSuccessPage.vue: Shows payment result.
+
+8. ADMIN PARKING MANAGEMENT
+   - AdminPage.vue: Admin CRUD for parking lots.
+   - GET/POST/PUT/DELETE /api/admin/parking: Manage parking lots.
+
+9. ADMIN PARKING SPACE MANAGEMENT
+   - AdminPage.vue: Admin CRUD for spaces.
+   - GET/POST/PUT/DELETE /api/admin/parkirno-mjesto: Manage spaces.
+
+10. ADMIN GATE, CAMERA, COLUMN MANAGEMENT
+    - AdminPage.vue: Admin CRUD for gates, cameras, columns.
+    - GET/POST/PUT/DELETE /api/admin/rampa|kamera|stup: Manage each entity.
+
+11. ADMIN TICKETS
+    - AdminTicketsPage.vue: Admin views, creates e-tickets.
+    - GET /api/admin/tickets: Lists all e-tickets.
+
+12. ADMIN USERS
+    - AdminTicketsPage.vue: Admin views users.
+    - GET /api/admin/users: Lists all users.
+
+13. INCIDENT REPORTING
+    - ParkingSpacePageNew.vue: User submits report with image/location.
+    - POST /api/reports: Submits report.
+    - GET /api/reports: Admin views reports.
+    - GET /api/reports/:id/image: Admin downloads image.
+    - DELETE /api/reports/:id: Admin deletes report.
+
+AUTH & SECURITY
+- All user/admin endpoints require JWT (authRequired middleware).
+- Admin endpoints require admin role (adminOnly middleware).
+- Passwords hashed with bcrypt.
+- Token stored in localStorage, attached to all API requests.
+
+DATABASE (KEY TABLES)
+- Korisnik: Users (ID, email, password hash, role, etc.)
+- Vozilo: Vehicles (registration, user ID, brand, type)
+- Parking: Parking lots (ID, address, capacity, price)
+- Parkirno_mjesto: Spaces (ID, parking ID, status, type)
+- Rezervacija: Reservations (ID, user, space, vehicle, times, status)
+- Ekarta: E-tickets (reservation ID, QR code)
+- parking_reports: Incident reports (id, user, parking, image, description, location)
+- Rampa, Kamera, Stup: Gates, cameras, columns
